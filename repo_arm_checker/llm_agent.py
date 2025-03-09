@@ -1,11 +1,11 @@
 from langchain_google_genai import GoogleGenerativeAI
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
 from config import GOOGLE_API_KEY
 
 
 def get_llm():
     """Initialize and return the Gemini model."""
+    print("\n🤖 Initializing Gemini LLM model...\n")
     return GoogleGenerativeAI(
         model="gemini-2.0-pro-exp-02-05", google_api_key=GOOGLE_API_KEY, temperature=0
     )
@@ -16,6 +16,15 @@ def get_llm_assessment(compatibility_result):
     Use LLM to generate a natural language assessment of the ARM64 compatibility
     results and recommendations.
     """
+    print("\n📊 Starting ARM64 compatibility assessment...")
+    print(f"\n📥 Input compatibility data summary:")
+    print(f"{'='*80}")
+
+    # 입력 데이터 요약 출력
+    result_str = str(compatibility_result)
+    print(f"{result_str[:500]}..." if len(result_str) > 500 else result_str)
+    print(f"{'='*80}")
+
     llm = get_llm()
 
     # Create a prompt template
@@ -28,20 +37,36 @@ def get_llm_assessment(compatibility_result):
     {compatibility_result}
     
     Instructions:
-    1. Start with an overall assessment of ARM64 compatibility.
-    2. Explain key findings from the instance types, Docker images, and dependencies.
+    1. Start with an overall assessment of ARM64 compatibility based on the provided context and reasoning.
+    2. Explain key findings from the instance types, Docker images, and dependencies analysis.
     3. Provide specific, actionable recommendations for migration to ARM64.
-    4. Keep your response concise, technical, and directly useful to engineers.
+    4. Refer to the reasoning and context provided in the analysis to explain your conclusions.
+    5. Keep your response concise, technical, and directly useful to engineers.
+    
+    Note: You are currently counting korean users, so please use the Korean language for your response.
     """
 
     prompt = PromptTemplate(input_variables=["compatibility_result"], template=template)
+    print("\n📝 Created prompt template for LLM")
 
-    # Create the chain
-    chain = LLMChain(llm=llm, prompt=prompt)
+    # LLMChain 대신 파이프 연산자(|) 사용
+    chain = prompt | llm
 
     # Run the chain
     try:
+        print("\n🔄 Sending data to LLM and awaiting response...")
         result = chain.invoke({"compatibility_result": str(compatibility_result)})
-        return result.get("text", "Unable to generate assessment")
+        print("\n✅ Received response from LLM")
+        print("\n📤 Assessment result received")
+
+        # 결과 형식이 바뀌었을 수 있으므로 체크
+        if isinstance(result, str):
+            output = result
+        else:
+            output = result if result is not None else "Unable to generate assessment"
+
+        return output
     except Exception as e:
-        return f"Error generating assessment: {str(e)}"
+        error_msg = f"Error generating assessment: {str(e)}"
+        print(f"\n❌ {error_msg}")
+        return error_msg

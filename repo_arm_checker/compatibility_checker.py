@@ -71,6 +71,21 @@ def check_arm_compatibility(analysis_results):
         "docker_images": [],
         "dependencies": [],
         "recommendations": [],
+        "context": {  # Add context information for LLM
+            "analysis_summary": {
+                "terraform_files_analyzed": len(
+                    analysis_results.get("terraform_analysis", [])
+                ),
+                "dockerfile_files_analyzed": len(
+                    analysis_results.get("dockerfile_analysis", [])
+                ),
+                "dependency_files_analyzed": len(
+                    analysis_results.get("dependency_analysis", [])
+                ),
+            },
+            "reasoning": [],
+            "process_description": "ARM compatibility was analyzed by examining AWS instance types, Docker base images, and dependencies for architecture-specific components.",
+        },
     }
 
     # Check instance types from Terraform
@@ -80,6 +95,21 @@ def check_arm_compatibility(analysis_results):
             compatibility = is_instance_type_arm_compatible(instance_type)
             compatibility["file"] = file_path
             compatibility_result["instance_types"].append(compatibility)
+
+            # Add reasoning for this instance type
+            reason = ""
+            if compatibility.get("already_arm", False):
+                reason = f"Instance type {instance_type} is already ARM-based and fully compatible."
+            elif compatibility.get("compatible") is True and compatibility.get(
+                "suggestion"
+            ):
+                reason = f"Instance type {instance_type} can be replaced with ARM equivalent {compatibility['suggestion']}."
+            elif compatibility.get("compatible") is False:
+                reason = f"Instance type {instance_type} has no ARM equivalent: {compatibility.get('reason', 'Unknown reason')}."
+            else:
+                reason = f"Instance type {instance_type} requires manual verification for ARM compatibility."
+
+            compatibility_result["context"]["reasoning"].append(reason)
 
             if compatibility.get("suggestion"):
                 compatibility_result["recommendations"].append(
@@ -96,11 +126,17 @@ def check_arm_compatibility(analysis_results):
             if "arm64" in base_image or "arm/v" in base_image:
                 image_compatibility["compatible"] = True
                 image_compatibility["already_arm"] = True
+                compatibility_result["context"]["reasoning"].append(
+                    f"Docker image {base_image} explicitly uses ARM64 architecture and is fully compatible."
+                )
             elif "amd64" in base_image or "x86_64" in base_image:
                 image_compatibility["compatible"] = False
                 image_compatibility["reason"] = "Explicitly uses x86 architecture"
                 compatibility_result["recommendations"].append(
                     f"Change base image {base_image} to an ARM64 compatible version in {file_path}"
+                )
+                compatibility_result["context"]["reasoning"].append(
+                    f"Docker image {base_image} explicitly uses x86 architecture and is incompatible with ARM64."
                 )
             else:
                 # Common images that offer ARM support
@@ -120,11 +156,17 @@ def check_arm_compatibility(analysis_results):
                     compatibility_result["recommendations"].append(
                         image_compatibility["suggestion"]
                     )
+                    compatibility_result["context"]["reasoning"].append(
+                        f"Docker image {base_image} is from a common repository that supports ARM64, but platform specification is recommended."
+                    )
                 else:
                     image_compatibility["compatible"] = "unknown"
                     image_compatibility["reason"] = "Manual verification needed"
                     compatibility_result["recommendations"].append(
                         f"Verify if {base_image} has ARM64 support in {file_path}"
+                    )
+                    compatibility_result["context"]["reasoning"].append(
+                        f"Docker image {base_image} has unknown ARM64 compatibility status and requires manual verification."
                     )
 
             compatibility_result["docker_images"].append(image_compatibility)
@@ -142,6 +184,9 @@ def check_arm_compatibility(analysis_results):
             compatibility_result["recommendations"].append(
                 f"Check compatibility of dependency {arch_dep} in {file_path}"
             )
+            compatibility_result["context"]["reasoning"].append(
+                f"Dependency {arch_dep} in {file_path} may have architecture-specific code or binaries that could be incompatible with ARM64."
+            )
 
     # Determine overall compatibility
     if (
@@ -153,6 +198,9 @@ def check_arm_compatibility(analysis_results):
         compatibility_result["recommendations"].append(
             "No clear architecture-specific elements found. Manual verification recommended."
         )
+        compatibility_result["context"]["reasoning"].append(
+            "No architecture-specific elements were identified in the analysis, making compatibility assessment uncertain."
+        )
     else:
         # Check if there are any incompatible elements
         has_incompatible = any(
@@ -163,7 +211,39 @@ def check_arm_compatibility(analysis_results):
 
         if has_incompatible:
             compatibility_result["overall_compatibility"] = "incompatible"
+            compatibility_result["context"]["reasoning"].append(
+                "Repository is marked as incompatible because one or more components explicitly conflict with ARM64 architecture."
+            )
         else:
             compatibility_result["overall_compatibility"] = "compatible"
+            compatibility_result["context"]["reasoning"].append(
+                "Repository is likely compatible with ARM64 as no explicitly incompatible elements were found."
+            )
+
+    # Add summary statistics to context
+    compatibility_result["context"]["statistics"] = {
+        "incompatible_items": sum(
+            1
+            for item in compatibility_result["instance_types"]
+            + compatibility_result["docker_images"]
+            + compatibility_result["dependencies"]
+            if item.get("compatible") is False
+        ),
+        "compatible_items": sum(
+            1
+            for item in compatibility_result["instance_types"]
+            + compatibility_result["docker_images"]
+            + compatibility_result["dependencies"]
+            if item.get("compatible") is True
+        ),
+        "unknown_items": sum(
+            1
+            for item in compatibility_result["instance_types"]
+            + compatibility_result["docker_images"]
+            + compatibility_result["dependencies"]
+            if item.get("compatible") == "unknown"
+        ),
+        "total_recommendations": len(compatibility_result["recommendations"]),
+    }
 
     return compatibility_result

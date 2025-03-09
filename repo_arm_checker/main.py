@@ -1,5 +1,6 @@
 import os
 import re
+import json
 from github_api import get_repository_info, get_repository_tree, get_file_content
 from file_analyzer import (
     analyze_terraform_file,
@@ -125,6 +126,47 @@ def lambda_handler(event, context):
         return {"statusCode": 500, "body": f"Error: {str(e)}"}
 
 
+def save_results_to_markdown(result, output_file="result.md"):
+    """Save analysis results to a markdown file."""
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(f"# ARM64 호환성 분석 결과\n\n")
+        f.write(f"## 저장소: {result['repository']}\n\n")
+
+        # 호환성 결과 출력
+        compatibility = result["compatibility_result"]["overall_compatibility"]
+        emoji = (
+            "✅"
+            if compatibility == "compatible"
+            else "❓" if compatibility == "unknown" else "❌"
+        )
+        f.write(f"## 호환성: {emoji} {compatibility}\n\n")
+
+        # 상세 분석 결과
+        f.write("## 상세 분석\n\n")
+        f.write(
+            f"- 인스턴스 타입: {len(result['compatibility_result'].get('instance_types', []))} 이슈\n"
+        )
+        f.write(
+            f"- 도커 이미지: {len(result['compatibility_result'].get('docker_images', []))} 이슈\n"
+        )
+        f.write(
+            f"- 종속성: {len(result['compatibility_result'].get('dependencies', []))} 이슈\n\n"
+        )
+
+        # 권장사항
+        if result["compatibility_result"].get("recommendations"):
+            f.write("## 권장사항\n\n")
+            for rec in result["compatibility_result"]["recommendations"]:
+                f.write(f"- {rec}\n")
+            f.write("\n")
+
+        # LLM 평가
+        f.write("## LLM 평가\n\n")
+        f.write(f"{result['llm_assessment']}\n")
+
+    print(f"\n결과가 {output_file}에 저장되었습니다.")
+
+
 if __name__ == "__main__":
     # For local testing
     import argparse
@@ -173,8 +215,18 @@ if __name__ == "__main__":
             # Print recommendations
             if result["compatibility_result"].get("recommendations"):
                 print("\nRecommendations:")
-                for rec in result["compatibility_result"]["recommendations"]:
+                for rec in result["compatibility_result"].get("recommendations"):
                     print(f"- {rec}")
+
+        # Save results to JSON if specified
+        if args.output.endswith(".json"):
+            with open(args.output, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"\nResults saved to {args.output}")
+
+        # Always save to result.md for local testing
+        save_results_to_markdown(result)
+
     except ValueError as e:
         print(f"Error: {e}")
         parser.print_help()
