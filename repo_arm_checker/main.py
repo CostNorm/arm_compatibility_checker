@@ -114,6 +114,7 @@ def analyze_repository(repo_url):
 def lambda_handler(event, context):
     """AWS Lambda handler function."""
     repo_url = event.get("repo_url")
+
     if not repo_url:
         return {"statusCode": 400, "body": "Repository URL is required"}
 
@@ -126,12 +127,54 @@ def lambda_handler(event, context):
 
 if __name__ == "__main__":
     # For local testing
-    import sys
+    import argparse
 
-    if len(sys.argv) > 1:
-        result = analyze_repository(sys.argv[1])
+    parser = argparse.ArgumentParser(
+        description="Check GitHub repository ARM compatibility"
+    )
+    parser.add_argument("--repo", required=True, help="GitHub repository URL")
+    parser.add_argument("--output", default="results.json", help="Output file path")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument(
+        "--skip-deps", action="store_true", help="Skip dependency checks"
+    )
+
+    args = parser.parse_args()
+
+    try:
+        result = analyze_repository(args.repo)
         print("\nARM64 Compatibility Analysis:")
         print(f"Repository: {result['repository']}")
+
+        # Print compatibility result with appropriate emoji
+        compatibility = result["compatibility_result"]["overall_compatibility"]
+        emoji = (
+            "✅"
+            if compatibility == "compatible"
+            else "❓" if compatibility == "unknown" else "❌"
+        )
+        print(f"Compatibility: {emoji} {compatibility}")
+
         print(f"Assessment: {result['llm_assessment']}")
-    else:
-        print("Usage: python main.py <github_repo_url>")
+
+        if args.verbose:
+            # Print detailed analysis results
+            print("\nDetailed Analysis:")
+            print(
+                f"Instance Types: {len(result['compatibility_result'].get('instance_types', []))} issues"
+            )
+            print(
+                f"Docker Images: {len(result['compatibility_result'].get('docker_images', []))} issues"
+            )
+            print(
+                f"Dependencies: {len(result['compatibility_result'].get('dependencies', []))} issues"
+            )
+
+            # Print recommendations
+            if result["compatibility_result"].get("recommendations"):
+                print("\nRecommendations:")
+                for rec in result["compatibility_result"]["recommendations"]:
+                    print(f"- {rec}")
+    except ValueError as e:
+        print(f"Error: {e}")
+        parser.print_help()
