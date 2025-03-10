@@ -27,7 +27,7 @@ def get_llm_assessment(compatibility_result):
 
     llm = get_llm()
 
-    # Create a prompt template
+    # Create a prompt template with enhanced guidance for dependency analysis
     template = """
     You are an expert in cloud computing architecture and ARM64 compatibility assessment.
     Based on the following analysis of a GitHub repository, provide a clear assessment of
@@ -39,9 +39,11 @@ def get_llm_assessment(compatibility_result):
     Instructions:
     1. Start with an overall assessment of ARM64 compatibility based on the provided context and reasoning.
     2. Explain key findings from the instance types, Docker images, and dependencies analysis.
-    3. Provide specific, actionable recommendations for migration to ARM64.
-    4. Refer to the reasoning and context provided in the analysis to explain your conclusions.
-    5. Keep your response concise, technical, and directly useful to engineers.
+    3. For dependency analysis, highlight whether Python packages have ARM64 wheels available or source distributions that can be compiled.
+    4. For Docker images, indicate if platform specification (--platform=linux/arm64) is needed or if the images explicitly support ARM64.
+    5. Provide specific, actionable recommendations for migration to ARM64, prioritizing critical issues.
+    6. Refer to the reasoning and context provided in the analysis to explain your conclusions.
+    7. Keep your response concise, technical, and directly useful to engineers.
     
     Note: You are currently counting korean users, so please use the Korean language for your response.
     """

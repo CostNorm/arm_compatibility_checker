@@ -1,15 +1,47 @@
 import os
 import re
 import json
-from github_api import get_repository_info, get_repository_tree, get_file_content
-from file_analyzer import (
+
+import sys
+
+
+from helpers.github_api import (
+    get_repository_info,
+    get_repository_tree,
+    get_file_content,
+)
+from helpers.file_analyzer import (
     analyze_terraform_file,
     analyze_dockerfile,
     analyze_dependencies,
 )
 from compatibility_checker import check_arm_compatibility
-from llm_agent import get_llm_assessment
-from config import ENABLE_LLM
+from llm_tools.llm_agent import get_llm_assessment
+from config import ENABLE_LLM, ENABLED_ANALYZERS
+
+# 파일 타입과 분석기 매핑 정의
+FILE_TYPE_ANALYZERS = {
+    "terraform": {
+        "patterns": [r"\.tf$"],  # Terraform 파일 패턴
+        "analysis_key": "terraform_analysis",
+        "analyzer": analyze_terraform_file,
+    },
+    "docker": {
+        "patterns": [r"Dockerfile$", r"/Dockerfile"],  # Dockerfile 패턴
+        "analysis_key": "dockerfile_analysis",
+        "analyzer": analyze_dockerfile,
+    },
+    "dependency": {
+        "patterns": [
+            r"requirements\.txt$",
+            r"package\.json$",
+            r"pom\.xml$",
+            r"build\.gradle$",
+        ],  # 의존성 파일 패턴
+        "analysis_key": "dependency_analysis",
+        "analyzer": analyze_dependencies,
+    },
+}
 
 
 def extract_repo_info(repo_url):
@@ -34,67 +66,59 @@ def analyze_repository(repo_url):
     # Get file tree
     tree = get_repository_tree(owner, repo, default_branch)
 
-    # Initialize data containers
-    terraform_files = []
-    dockerfiles = []
-    dependency_files = []
+    # Initialize results container
+    results = {}
 
-    # Identify relevant files
+    # Create file categories based on enabled analyzers
+    file_categories = {}
+
+    # 활성화된 분석기에 대해서만 파일 카테고리 생성
+    for analyzer_name, enabled in ENABLED_ANALYZERS.items():
+        if enabled and analyzer_name in FILE_TYPE_ANALYZERS:
+            file_categories[analyzer_name] = []
+            # 각 분석기에 대한 분석 결과 키 초기화
+            results[FILE_TYPE_ANALYZERS[analyzer_name]["analysis_key"]] = []
+
+    # Identify relevant files based on enabled analyzers
     for item in tree.get("tree", []):
         if item["type"] == "blob":
             path = item["path"]
-            if path.endswith(".tf"):
-                terraform_files.append(path)
-            elif path.endswith("Dockerfile") or "/Dockerfile" in path:
-                dockerfiles.append(path)
-            elif any(
-                path.endswith(dep)
-                for dep in [
-                    "requirements.txt",
-                    "package.json",
-                    "pom.xml",
-                    "build.gradle",
-                ]
-            ):
-                dependency_files.append(path)
 
-    # Analysis results
-    results = {
-        "terraform_analysis": [],
-        "dockerfile_analysis": [],
-        "dependency_analysis": [],
-    }
+            # 활성화된 분석기에 대해 파일 체크
+            for analyzer_name, category_info in file_categories.items():
+                analyzer_config = FILE_TYPE_ANALYZERS[analyzer_name]
+                for pattern in analyzer_config["patterns"]:
+                    if re.search(pattern, path):
+                        category_info.append(path)
+                        break
 
-    # Analyze Terraform files
-    for tf_file in terraform_files:
-        content = get_file_content(owner, repo, tf_file)
-        if content:
-            analysis = analyze_terraform_file(content)
-            if analysis:
-                results["terraform_analysis"].append(
-                    {"file": tf_file, "analysis": analysis}
-                )
+    # Analyze files for each enabled analyzer
+    for analyzer_name, file_paths in file_categories.items():
+        analyzer_config = FILE_TYPE_ANALYZERS[analyzer_name]
+        analysis_key = analyzer_config["analysis_key"]
+        analyzer_func = analyzer_config["analyzer"]
 
-    # Analyze Dockerfiles
-    for dockerfile in dockerfiles:
-        content = get_file_content(owner, repo, dockerfile)
-        if content:
-            analysis = analyze_dockerfile(content)
-            if analysis:
-                results["dockerfile_analysis"].append(
-                    {"file": dockerfile, "analysis": analysis}
-                )
-
-    # Analyze dependencies
-    for dep_file in dependency_files:
-        content = get_file_content(owner, repo, dep_file)
-        if content:
-            file_type = dep_file.split(".")[-1] if "." in dep_file else "txt"
-            analysis = analyze_dependencies(content, file_type)
-            if analysis:
-                results["dependency_analysis"].append(
-                    {"file": dep_file, "analysis": analysis}
-                )
+        for file_path in file_paths:
+            content = get_file_content(owner, repo, file_path)
+            if content:
+                # 의존성 분석기는 파일 타입 인자가 필요하므로 특별 처리
+                if analyzer_name == "dependency":
+                    file_type = file_path.split(".")[-1] if "." in file_path else "txt"
+                    analysis = analyzer_func(content, file_type)
+                    if analysis:
+                        results[analysis_key].append(
+                            {
+                                "file": file_path,
+                                "analysis": analysis,
+                                "content": content,
+                            }
+                        )
+                else:
+                    analysis = analyzer_func(content)
+                    if analysis:
+                        results[analysis_key].append(
+                            {"file": file_path, "analysis": analysis}
+                        )
 
     # Check compatibility
     compatibility_result = check_arm_compatibility(results)

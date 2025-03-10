@@ -55,7 +55,7 @@ def analyze_dependencies(content, file_type):
     Analyze dependency files (requirements.txt, package.json, etc.)
     for architecture-specific dependencies.
     """
-    results = {"dependencies": [], "arch_specific": []}
+    results = {"dependencies": [], "arch_specific": [], "content": content}
 
     if file_type == "txt":  # requirements.txt
         # Extract package names and versions
