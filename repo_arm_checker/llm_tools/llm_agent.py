@@ -38,12 +38,14 @@ def get_llm_assessment(compatibility_result):
     
     Instructions:
     1. Start with an overall assessment of ARM64 compatibility based on the provided context and reasoning.
-    2. Explain key findings from the instance types, Docker images, and dependencies analysis.
-    3. For dependency analysis, highlight whether Python packages have ARM64 wheels available or source distributions that can be compiled.
-    4. For Docker images, indicate if platform specification (--platform=linux/arm64) is needed or if the images explicitly support ARM64.
-    5. Provide specific, actionable recommendations for migration to ARM64, prioritizing critical issues.
-    6. Refer to the reasoning and context provided in the analysis to explain your conclusions.
-    7. Keep your response concise, technical, and directly useful to engineers.
+    2. IMPORTANT: Only discuss and provide recommendations for analyzers that were actually enabled during the analysis.
+    3. The enabled analyzers are listed in the compatibility_result.context.enabled_analyzers field. ONLY discuss these analyzers.
+    4. For each enabled analyzer:
+       - If "terraform" is enabled: Discuss EC2 instance types and IaC compatibility findings
+       - If "docker" is enabled: Discuss Docker image compatibility and platform specifications
+       - If "dependency" is enabled: Discuss the compatibility of software dependencies
+    5. Do NOT provide recommendations for disabled analyzers
+    6. Keep your response concise, technical, and directly useful to engineers.
     
     Note: You are currently counting korean users, so please use the Korean language for your response.
     """
