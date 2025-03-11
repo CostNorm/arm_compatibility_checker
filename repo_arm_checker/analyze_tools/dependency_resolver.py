@@ -6,8 +6,11 @@ import logging
 from typing import Dict, List, Any, Tuple, Optional
 import os
 
-# Import the existing compatibility checker
-from analyze_tools.dependency_analyzer import check_pypi_package_arm_compatibility
+# Import the package compatibility checker
+from analyze_tools.package_compatibility import (
+    check_pypi_package_arm_compatibility,
+    parse_package_json,
+)
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -206,7 +209,7 @@ def analyze_requirements_with_pipgrip(content: str) -> List[Dict[str, Any]]:
                 )
 
     except Exception as e:
-        logger.error(f"Error in enhanced dependency analysis: {str(e)}")
+        logger.error(f"Error in dependency resolution: {str(e)}")
         # Fallback: just analyze direct dependencies if pipgrip fails
         if not results:
             for package_name, version_spec, original_line in direct_dependencies:
@@ -226,9 +229,41 @@ def analyze_requirements_with_pipgrip(content: str) -> List[Dict[str, Any]]:
     return results
 
 
-def analyze_enhanced_dependency_compatibility(dependency_analysis):
+def parse_requirements_txt(content):
+    """Parse requirements.txt file and check ARM compatibility of each package."""
+    results = []
+
+    for line in content.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        # Parse package name and version
+        match = re.match(r"^([A-Za-z0-9_.-]+)([<>=!~].+)?$", line)
+        if not match:
+            continue
+
+        package_name = match.group(1)
+        version_spec = match.group(2)
+
+        # Check compatibility
+        compatibility = check_pypi_package_arm_compatibility(package_name)
+        results.append(
+            {
+                "dependency": line,
+                "name": package_name,
+                "version_spec": version_spec,
+                "compatible": compatibility.get("compatible"),
+                "reason": compatibility.get("reason"),
+            }
+        )
+
+    return results
+
+
+def analyze_dependency_compatibility(dependency_analysis):
     """
-    Enhanced function to analyze dependencies for ARM compatibility.
+    Analyze dependencies for ARM compatibility.
     Uses pipgrip for transitive dependency analysis.
     """
     dependency_results = []
@@ -293,15 +328,12 @@ def analyze_enhanced_dependency_compatibility(dependency_analysis):
 
                     reasoning.append(reason)
 
-        # Handle other dependency files (package.json, etc.) using existing mechanisms
+        # Handle other dependency files (package.json, etc.)
         elif (
             file_name == "package.json"
             or file_name.endswith(".pom")
             or file_name.endswith(".gradle")
         ):
-            # Use the existing approach from dependency_analyzer.py
-            from analyze_tools.dependency_analyzer import parse_package_json
-
             content = dep_analysis.get("content", "{}")
             if file_name == "package.json":
                 packages = parse_package_json(content)

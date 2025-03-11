@@ -4,7 +4,7 @@ from analyze_tools.terraform_analyzer import (
 from analyze_tools.docker_analyzer import (
     analyze_docker_compatibility,
 )
-from analyze_tools.dependency_analyzer import (
+from analyze_tools.dependency_resolver import (
     analyze_dependency_compatibility,
 )
 from config import ENABLED_ANALYZERS

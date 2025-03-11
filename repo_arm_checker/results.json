@@ -6,108 +6,77 @@
     "docker_images": [],
     "dependencies": [
       {
-        "dependency": "requests==2.31.0",
+        "dependency": "requests==2.32.3",
         "name": "requests",
-        "version_spec": "==2.31.0",
+        "version_spec": "==2.32.3",
         "compatible": true,
         "reason": "Universal wheels available: requests-2.32.3-py3-none-any.whl",
         "direct": true,
         "file": "repo_arm_checker/requirements.txt"
       },
       {
-        "dependency": "langchain==0.0.267",
+        "dependency": "langchain==0.3.20",
         "name": "langchain",
-        "version_spec": "==0.0.267",
+        "version_spec": "==0.3.20",
         "compatible": true,
         "reason": "Universal wheels available: langchain-0.3.20-py3-none-any.whl",
         "direct": true,
         "file": "repo_arm_checker/requirements.txt"
       },
       {
-        "dependency": "langchain-google-genai==0.0.5",
+        "dependency": "typing-extensions",
+        "name": "typing-extensions",
+        "version_spec": null,
+        "compatible": true,
+        "reason": "Universal wheels available: typing_extensions-4.12.2-py3-none-any.whl",
+        "direct": false,
+        "parent": "langchain",
+        "file": "repo_arm_checker/requirements.txt"
+      },
+      {
+        "dependency": "langchain-google-genai==2.0.11",
         "name": "langchain-google-genai",
-        "version_spec": "==0.0.5",
+        "version_spec": "==2.0.11",
         "compatible": true,
         "reason": "Universal wheels available: langchain_google_genai-2.0.11-py3-none-any.whl",
         "direct": true,
         "file": "repo_arm_checker/requirements.txt"
       },
       {
-        "dependency": "anyio",
-        "name": "anyio",
+        "dependency": "annotated-types",
+        "name": "annotated-types",
         "version_spec": null,
         "compatible": true,
-        "reason": "Universal wheels available: anyio-4.8.0-py3-none-any.whl",
+        "reason": "Universal wheels available: annotated_types-0.7.0-py3-none-any.whl",
         "direct": false,
         "parent": "langchain-google-genai",
         "file": "repo_arm_checker/requirements.txt"
       },
       {
-        "dependency": "jsonpatch",
-        "name": "jsonpatch",
+        "dependency": "pydantic-core",
+        "name": "pydantic-core",
         "version_spec": null,
         "compatible": true,
-        "reason": "Universal wheels available: jsonpatch-1.33-py2.py3-none-any.whl",
+        "reason": "ARM-specific wheels available: pydantic_core-2.31.1-cp310-cp310-macosx_11_0_arm64.whl, pydantic_core-2.31.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, pydantic_core-2.31.1-cp310-cp310-manylinux_2_17_armv7l.manylinux2014_armv7l.whl, pydantic_core-2.31.1-cp310-cp310-musllinux_1_1_aarch64.whl, pydantic_core-2.31.1-cp310-cp310-musllinux_1_1_armv7l.whl, pydantic_core-2.31.1-cp311-cp311-macosx_11_0_arm64.whl, pydantic_core-2.31.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, pydantic_core-2.31.1-cp311-cp311-manylinux_2_17_armv7l.manylinux2014_armv7l.whl, pydantic_core-2.31.1-cp311-cp311-musllinux_1_1_aarch64.whl, pydantic_core-2.31.1-cp311-cp311-musllinux_1_1_armv7l.whl, pydantic_core-2.31.1-cp311-cp311-win_arm64.whl, pydantic_core-2.31.1-cp312-cp312-macosx_11_0_arm64.whl, pydantic_core-2.31.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, pydantic_core-2.31.1-cp312-cp312-manylinux_2_17_armv7l.manylinux2014_armv7l.whl, pydantic_core-2.31.1-cp312-cp312-musllinux_1_1_aarch64.whl, pydantic_core-2.31.1-cp312-cp312-musllinux_1_1_armv7l.whl, pydantic_core-2.31.1-cp312-cp312-win_arm64.whl, pydantic_core-2.31.1-cp313-cp313-macosx_11_0_arm64.whl, pydantic_core-2.31.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, pydantic_core-2.31.1-cp313-cp313-manylinux_2_17_armv7l.manylinux2014_armv7l.whl, pydantic_core-2.31.1-cp313-cp313-musllinux_1_1_aarch64.whl, pydantic_core-2.31.1-cp313-cp313-musllinux_1_1_armv7l.whl, pydantic_core-2.31.1-cp313-cp313t-macosx_11_0_arm64.whl, pydantic_core-2.31.1-cp313-cp313-win_arm64.whl, pydantic_core-2.31.1-cp39-cp39-macosx_11_0_arm64.whl, pydantic_core-2.31.1-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, pydantic_core-2.31.1-cp39-cp39-manylinux_2_17_armv7l.manylinux2014_armv7l.whl, pydantic_core-2.31.1-cp39-cp39-musllinux_1_1_aarch64.whl, pydantic_core-2.31.1-cp39-cp39-musllinux_1_1_armv7l.whl, pydantic_core-2.31.1-pp310-pypy310_pp73-macosx_11_0_arm64.whl, pydantic_core-2.31.1-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, pydantic_core-2.31.1-pp310-pypy310_pp73-musllinux_1_1_aarch64.whl, pydantic_core-2.31.1-pp310-pypy310_pp73-musllinux_1_1_armv7l.whl, pydantic_core-2.31.1-pp311-pypy311_pp73-macosx_11_0_arm64.whl, pydantic_core-2.31.1-pp311-pypy311_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, pydantic_core-2.31.1-pp311-pypy311_pp73-musllinux_1_1_aarch64.whl, pydantic_core-2.31.1-pp311-pypy311_pp73-musllinux_1_1_armv7l.whl, pydantic_core-2.31.1-pp39-pypy39_pp73-macosx_11_0_arm64.whl, pydantic_core-2.31.1-pp39-pypy39_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, pydantic_core-2.31.1-pp39-pypy39_pp73-musllinux_1_1_aarch64.whl, pydantic_core-2.31.1-pp39-pypy39_pp73-musllinux_1_1_armv7l.whl",
         "direct": false,
         "parent": "langchain-google-genai",
         "file": "repo_arm_checker/requirements.txt"
       },
       {
-        "dependency": "langsmith",
-        "name": "langsmith",
-        "version_spec": null,
-        "compatible": true,
-        "reason": "Universal wheels available: langsmith-0.3.13-py3-none-any.whl",
-        "direct": false,
-        "parent": "langchain-google-genai",
-        "file": "repo_arm_checker/requirements.txt"
-      },
-      {
-        "dependency": "packaging",
-        "name": "packaging",
-        "version_spec": null,
-        "compatible": true,
-        "reason": "Universal wheels available: packaging-24.2-py3-none-any.whl",
-        "direct": false,
-        "parent": "langchain-google-genai",
-        "file": "repo_arm_checker/requirements.txt"
-      },
-      {
-        "dependency": "pydantic",
-        "name": "pydantic",
-        "version_spec": null,
-        "compatible": true,
-        "reason": "Universal wheels available: pydantic-2.10.6-py3-none-any.whl",
-        "direct": false,
-        "parent": "langchain-google-genai",
-        "file": "repo_arm_checker/requirements.txt"
-      },
-      {
-        "dependency": "pyyaml",
-        "name": "pyyaml",
-        "version_spec": null,
-        "compatible": true,
-        "reason": "ARM-specific wheels available: PyYAML-6.0.2-cp310-cp310-macosx_11_0_arm64.whl, PyYAML-6.0.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, PyYAML-6.0.2-cp310-cp310-musllinux_1_1_aarch64.whl, PyYAML-6.0.2-cp311-cp311-macosx_11_0_arm64.whl, PyYAML-6.0.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, PyYAML-6.0.2-cp311-cp311-musllinux_1_1_aarch64.whl, PyYAML-6.0.2-cp312-cp312-macosx_11_0_arm64.whl, PyYAML-6.0.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, PyYAML-6.0.2-cp312-cp312-musllinux_1_1_aarch64.whl, PyYAML-6.0.2-cp313-cp313-macosx_11_0_arm64.whl, PyYAML-6.0.2-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, PyYAML-6.0.2-cp313-cp313-musllinux_1_1_aarch64.whl, PyYAML-6.0.2-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, PyYAML-6.0.2-cp39-cp39-macosx_11_0_arm64.whl, PyYAML-6.0.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl, PyYAML-6.0.2-cp39-cp39-musllinux_1_1_aarch64.whl",
-        "direct": false,
-        "parent": "langchain-google-genai",
-        "file": "repo_arm_checker/requirements.txt"
-      },
-      {
-        "dependency": "tenacity",
-        "name": "tenacity",
-        "version_spec": null,
-        "compatible": true,
-        "reason": "Universal wheels available: tenacity-9.0.0-py3-none-any.whl",
-        "direct": false,
-        "parent": "langchain-google-genai",
-        "file": "repo_arm_checker/requirements.txt"
-      },
-      {
-        "dependency": "python-dotenv==1.0.0",
+        "dependency": "python-dotenv==1.0.1",
         "name": "python-dotenv",
-        "version_spec": "==1.0.0",
+        "version_spec": "==1.0.1",
         "compatible": true,
         "reason": "Universal wheels available: python_dotenv-1.0.1-py3-none-any.whl",
+        "direct": true,
+        "file": "repo_arm_checker/requirements.txt"
+      },
+      {
+        "dependency": "pipgrip==0.10.14",
+        "name": "pipgrip",
+        "version_spec": "==0.10.14",
+        "compatible": true,
+        "reason": "Universal wheels available: pipgrip-0.10.14-py2.py3-none-any.whl",
         "direct": true,
         "file": "repo_arm_checker/requirements.txt"
       }
@@ -128,11 +97,11 @@
       ],
       "statistics": {
         "incompatible_items": 0,
-        "compatible_items": 11,
+        "compatible_items": 8,
         "unknown_items": 0,
         "total_recommendations": 0
       }
     }
   },
-  "llm_assessment": "## ARM64 호환성 평가 결과\n\n제공된 분석 결과에 따르면, 이 저장소는 ARM64 아키텍처와 **호환됩니다**.  분석 결과 명시적으로 비호환되는 요소가 발견되지 않았기 때문입니다.\n\n활성화된 분석기(`dependency`)에 대한 세부 분석은 다음과 같습니다:\n\n**`dependency` 분석기:**\n\n소프트웨어 종속성 분석 결과, 모든 종속성이 ARM64 아키텍처와 호환됩니다.\n\n*   **직접 종속성:**\n    *   `requests==2.31.0`: 범용 휠(`requests-2.32.3-py3-none-any.whl`)이 제공되므로 호환됩니다.\n    *   `langchain==0.0.267`: 범용 휠(`langchain-0.3.20-py3-none-any.whl`)이 제공되므로 호환됩니다.\n    *   `langchain-google-genai==0.0.5`: 범용 휠(`langchain_google_genai-2.0.11-py3-none-any.whl`)이 제공되므로 호환됩니다.\n    *   `python-dotenv==1.0.0`: 범용 휠(`python_dotenv-1.0.1-py3-none-any.whl`)이 제공되므로 호환됩니다.\n\n*   **간접 종속성:**\n    *   `anyio`, `jsonpatch`, `langsmith`, `packaging`, `pydantic`, `pyyaml`, `tenacity`: 모두 범용 휠 또는 ARM64 특정 휠이 제공되므로 호환됩니다. 특히 `pyyaml`은 다양한 ARM64 환경(예: `manylinux_2_17_aarch64`, `macosx_11_0_arm64`)을 위한 휠이 제공되어 폭넓은 호환성을 보장합니다.\n\n종속성과 관련하여 추가적인 마이그레이션 권장 사항은 없습니다. 모든 종속성이 ARM64를 지원합니다."
+  "llm_assessment": "## ARM64 호환성 평가 (한국어)\n\n**전반적인 평가:** 제공된 분석 결과에 따르면, 이 저장소는 ARM64 아키텍처와 호환됩니다. 명시적으로 비호환되는 요소가 발견되지 않았으며, 분석된 모든 종속성이 ARM64를 지원합니다.\n\n**활성화된 분석기 별 상세:**\n\n*   **dependency (종속성):**\n    *   분석 결과, `requirements.txt` 파일에 명시된 모든 직접 및 간접 종속성(`requests`, `langchain`, `typing-extensions`, `langchain-google-genai`, `annotated-types`, `pydantic-core`, `python-dotenv`, `pipgrip`)은 ARM64 아키텍처를 지원합니다.\n    *   `pydantic-core`의 경우, 다양한 Python 버전 및 운영체제에 대한 ARM64 전용 휠 파일이 제공되므로 호환성에 문제가 없습니다.\n    *   나머지 종속성들은 범용 휠(universal wheel) 형태로 제공되어 플랫폼에 관계없이 설치 및 실행이 가능합니다.\n\n**권장 사항:**\n\n현재 분석된 종속성 측면에서는 ARM64 마이그레이션을 위한 특별한 권장 사항은 없습니다. 모든 종속성이 ARM64를 지원하므로, 애플리케이션을 ARM64 기반 환경에서 문제없이 실행할 수 있을 것으로 예상됩니다."
 }

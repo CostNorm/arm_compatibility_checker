@@ -1,7 +1,6 @@
 import re
 import json
 import requests
-from packaging import version
 import logging
 
 # Configure logger
@@ -10,14 +9,6 @@ logger = logging.getLogger(__name__)
 
 # Cache for PyPI package information to avoid repeated API calls
 PYPI_CACHE = {}
-
-
-import re
-import requests
-import logging
-
-logger = logging.getLogger(__name__)
-PYPI_CACHE = {}  # 캐시 초기화
 
 
 def check_pypi_package_arm_compatibility(package_name, package_version=None):
@@ -165,49 +156,6 @@ def check_pypi_package_arm_compatibility(package_name, package_version=None):
         }
 
 
-# 예시 사용
-if __name__ == "__main__":
-    # pybloomfiltermmap3 최신 버전 확인
-    result = check_pypi_package_arm_compatibility("pybloomfiltermmap3")
-    print(result)
-
-    # 특정 버전 확인
-    result = check_pypi_package_arm_compatibility("pybloomfiltermmap3", "0.6.0")
-    print(result)
-
-
-def parse_requirements_txt(content):
-    """Parse requirements.txt file and check ARM compatibility of each package."""
-    results = []
-
-    for line in content.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        # Parse package name and version
-        match = re.match(r"^([A-Za-z0-9_.-]+)([<>=!~].+)?$", line)
-        if not match:
-            continue
-
-        package_name = match.group(1)
-        version_spec = match.group(2)
-
-        # Check compatibility
-        compatibility = check_pypi_package_arm_compatibility(package_name)
-        results.append(
-            {
-                "dependency": line,
-                "name": package_name,
-                "version_spec": version_spec,
-                "compatible": compatibility.get("compatible"),
-                "reason": compatibility.get("reason"),
-            }
-        )
-
-    return results
-
-
 def parse_package_json(content):
     """Parse package.json file and check ARM compatibility of Node.js packages."""
     results = []
@@ -270,15 +218,12 @@ def parse_package_json(content):
     return results
 
 
-def analyze_dependency_compatibility(dependency_analysis):
-    """
-    Analyze dependencies for ARM compatibility
-    This function now delegates to the enhanced analyzer
-    """
-    # Import here to avoid circular imports
-    from analyze_tools.enhanced_dependency_analyzer import (
-        analyze_enhanced_dependency_compatibility,
-    )
+# 예시 사용
+if __name__ == "__main__":
+    # pybloomfiltermmap3 최신 버전 확인
+    result = check_pypi_package_arm_compatibility("pybloomfiltermmap3")
+    print(result)
 
-    # Forward to the enhanced analyzer
-    return analyze_enhanced_dependency_compatibility(dependency_analysis)
+    # 특정 버전 확인
+    result = check_pypi_package_arm_compatibility("pybloomfiltermmap3", "0.6.0")
+    print(result)
