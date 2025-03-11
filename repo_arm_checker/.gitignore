@@ -57,4 +57,3 @@ logs/
 *.log
 output/
 temp/
-results.json

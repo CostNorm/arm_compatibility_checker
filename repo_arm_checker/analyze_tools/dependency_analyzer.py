@@ -273,76 +273,12 @@ def parse_package_json(content):
 def analyze_dependency_compatibility(dependency_analysis):
     """
     Analyze dependencies for ARM compatibility
+    This function now delegates to the enhanced analyzer
     """
-    dependency_results = []
-    recommendations = []
-    reasoning = []
+    # Import here to avoid circular imports
+    from analyze_tools.enhanced_dependency_analyzer import (
+        analyze_enhanced_dependency_compatibility,
+    )
 
-    for dep_analysis in dependency_analysis:
-        file_path = dep_analysis.get("file", "unknown")
-        file_name = file_path.split("/")[-1]
-
-        if file_name == "requirements.txt":
-            # Get the file content and parse it properly
-            content = dep_analysis.get("content", "")
-            if not content and dep_analysis.get("analysis", {}).get("dependencies"):
-                content = "\n".join(
-                    dep_analysis.get("analysis", {}).get("dependencies", [])
-                )
-
-            packages = parse_requirements_txt(content)
-
-            for package in packages:
-                package["file"] = file_path
-                dependency_results.append(package)
-
-                if package.get("compatible") is False:
-                    reason = f"Python package {package['name']} is not compatible with ARM64: {package.get('reason')}"
-                    recommendations.append(
-                        f"Replace {package['name']} with an ARM64 compatible alternative in {file_path}"
-                    )
-                    reasoning.append(reason)
-                elif package.get("compatible") == "partial":
-                    reason = f"Python package {package['name']} may have ARM64 compatibility issues: {package.get('reason')}"
-                    recommendations.append(
-                        f"Test {package['name']} on ARM64 and check for compatibility issues in {file_path}"
-                    )
-                    reasoning.append(reason)
-
-        elif file_name == "package.json":
-            content = dep_analysis.get("content", "{}")
-            packages = parse_package_json(content)
-
-            for package in packages:
-                package["file"] = file_path
-                dependency_results.append(package)
-
-                if package.get("compatible") != True:
-                    reason = f"Node.js package {package['name']} might have ARM64 compatibility issues: {package.get('reason')}"
-                    recommendations.append(
-                        f"Test {package['name']} on ARM64 and check for native dependencies in {file_path}"
-                    )
-                    reasoning.append(reason)
-
-        # For other dependency files, use the existing analysis
-        else:
-            for arch_dep in dep_analysis.get("analysis", {}).get("arch_specific", []):
-                dependency = {
-                    "dependency": arch_dep,
-                    "file": file_path,
-                    "compatible": False,
-                    "reason": "Architecture-specific code detected",
-                }
-                dependency_results.append(dependency)
-                recommendations.append(
-                    f"Check compatibility of dependency {arch_dep} in {file_path}"
-                )
-                reasoning.append(
-                    f"Dependency {arch_dep} in {file_path} may have architecture-specific code or binaries that could be incompatible with ARM64."
-                )
-
-    return {
-        "dependencies": dependency_results,
-        "recommendations": recommendations,
-        "reasoning": reasoning,
-    }
+    # Forward to the enhanced analyzer
+    return analyze_enhanced_dependency_compatibility(dependency_analysis)
