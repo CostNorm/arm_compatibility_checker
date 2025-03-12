@@ -9,7 +9,6 @@ import os
 # Import the package compatibility checker
 from analyze_tools.package_compatibility import (
     check_pypi_package_arm_compatibility,
-    parse_package_json,
 )
 
 # Configure logger
@@ -229,38 +228,6 @@ def analyze_requirements_with_pipgrip(content: str) -> List[Dict[str, Any]]:
     return results
 
 
-def parse_requirements_txt(content):
-    """Parse requirements.txt file and check ARM compatibility of each package."""
-    results = []
-
-    for line in content.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        # Parse package name and version
-        match = re.match(r"^([A-Za-z0-9_.-]+)([<>=!~].+)?$", line)
-        if not match:
-            continue
-
-        package_name = match.group(1)
-        version_spec = match.group(2)
-
-        # Check compatibility
-        compatibility = check_pypi_package_arm_compatibility(package_name)
-        results.append(
-            {
-                "dependency": line,
-                "name": package_name,
-                "version_spec": version_spec,
-                "compatible": compatibility.get("compatible"),
-                "reason": compatibility.get("reason"),
-            }
-        )
-
-    return results
-
-
 def analyze_dependency_compatibility(dependency_analysis):
     """
     Analyze dependencies for ARM compatibility.
@@ -269,6 +236,9 @@ def analyze_dependency_compatibility(dependency_analysis):
     dependency_results = []
     recommendations = []
     reasoning = []
+
+    # Problematic packages for Python
+    problematic_python_packages = ["tensorflow<2", "torch<1.9", "nvidia-", "cuda"]
 
     for dep_analysis in dependency_analysis:
         file_path = dep_analysis.get("file", "unknown")
@@ -326,29 +296,6 @@ def analyze_dependency_compatibility(dependency_analysis):
                             f"Test {parent} with its dependency {package_info} on ARM64 for compatibility"
                         )
 
-                    reasoning.append(reason)
-
-        # Handle other dependency files (package.json, etc.)
-        elif (
-            file_name == "package.json"
-            or file_name.endswith(".pom")
-            or file_name.endswith(".gradle")
-        ):
-            content = dep_analysis.get("content", "{}")
-            if file_name == "package.json":
-                packages = parse_package_json(content)
-            else:
-                packages = []
-
-            for package in packages:
-                package["file"] = file_path
-                dependency_results.append(package)
-
-                if package.get("compatible") != True:
-                    reason = f"Package {package['name']} might have ARM64 compatibility issues: {package.get('reason')}"
-                    recommendations.append(
-                        f"Test {package['name']} on ARM64 and check for native dependencies in {file_path}"
-                    )
                     reasoning.append(reason)
 
     # De-duplicate recommendations

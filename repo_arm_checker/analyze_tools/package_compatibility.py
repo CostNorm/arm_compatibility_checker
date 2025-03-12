@@ -221,7 +221,7 @@ def parse_package_json(content):
 # 예시 사용
 if __name__ == "__main__":
     # pybloomfiltermmap3 최신 버전 확인
-    result = check_pypi_package_arm_compatibility("pybloomfiltermmap3")
+    result = check_pypi_package_arm_compatibility("rbloom")
     print(result)
 
     # 특정 버전 확인

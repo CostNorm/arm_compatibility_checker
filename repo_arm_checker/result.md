@@ -8,7 +8,7 @@
 
 - 인스턴스 타입: 0 이슈
 - 도커 이미지: 0 이슈
-- 종속성: 8 이슈
+- 종속성: 8 분석됨 (5 직접, 3 전이적), 0 이슈
 
 ## LLM 평가
 
@@ -18,11 +18,12 @@
 
 **활성화된 분석기 별 상세:**
 
-*   **dependency (종속성):**
-    *   분석 결과, `requirements.txt` 파일에 명시된 모든 직접 및 간접 종속성(`requests`, `langchain`, `typing-extensions`, `langchain-google-genai`, `annotated-types`, `pydantic-core`, `python-dotenv`, `pipgrip`)은 ARM64 아키텍처를 지원합니다.
-    *   `pydantic-core`의 경우, 다양한 Python 버전 및 운영체제에 대한 ARM64 전용 휠 파일이 제공되므로 호환성에 문제가 없습니다.
-    *   나머지 종속성들은 범용 휠(universal wheel) 형태로 제공되어 플랫폼에 관계없이 설치 및 실행이 가능합니다.
+*   **`dependency` 분석기:**
+    *   `requests`, `langchain`, `typing-extensions`, `langchain-google-genai`, `annotated-types`, `pydantic-core`, `python-dotenv`, `pipgrip`를 포함한 모든 분석된 종속성들이 ARM64 아키텍처와 호환됩니다.
+    *   `requests`, `langchain`, `typing-extensions`, `langchain-google-genai`, `annotated-types`, `python-dotenv`, `pipgrip`는 범용 휠(universal wheel)을 제공하여 모든 아키텍처에서 사용 가능합니다.
+    *   `pydantic-core`는 ARM64 특정 휠을 제공하여 ARM64 아키텍처를 명시적으로 지원합니다 (예: `pydantic_core-2.31.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl`).
+    *   따라서, 종속성으로 인한 ARM64 호환성 문제는 없습니다.
 
 **권장 사항:**
 
-현재 분석된 종속성 측면에서는 ARM64 마이그레이션을 위한 특별한 권장 사항은 없습니다. 모든 종속성이 ARM64를 지원하므로, 애플리케이션을 ARM64 기반 환경에서 문제없이 실행할 수 있을 것으로 예상됩니다.
+현재 분석 결과, 종속성 측면에서 ARM64 마이그레이션을 위한 특별한 권장 사항은 없습니다. 모든 종속성이 ARM64를 지원하므로, 추가적인 조치 없이 ARM64 환경에서 저장소를 사용할 수 있습니다.

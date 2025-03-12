@@ -2,7 +2,7 @@ import re
 import json
 
 
-def analyze_terraform_file(content):
+def extract_instance_types_from_terraform_file(content):
     """
     Analyze Terraform file content for instance types and other ARM64
     compatibility indicators.
@@ -26,7 +26,7 @@ def analyze_terraform_file(content):
     return results
 
 
-def analyze_dockerfile(content):
+def parse_dockerfile_content(content):
     """
     Analyze Dockerfile content for base image architecture and other
     ARM64 compatibility indicators.
@@ -50,12 +50,11 @@ def analyze_dockerfile(content):
     return results
 
 
-def analyze_dependencies(content, file_type):
+def extract_dependencies(content, file_type):
     """
-    Analyze dependency files (requirements.txt, package.json, etc.)
-    for architecture-specific dependencies.
+    Extract dependencies from requirements.txt files
     """
-    results = {"dependencies": [], "arch_specific": [], "content": content}
+    results = {"dependencies": [], "content": content}
 
     if file_type == "txt":  # requirements.txt
         # Extract package names and versions
@@ -63,44 +62,5 @@ def analyze_dependencies(content, file_type):
             line = line.strip()
             if line and not line.startswith("#"):
                 results["dependencies"].append(line)
-                # Check for known problematic packages for ARM64
-                if any(
-                    pkg in line.lower()
-                    for pkg in ["tensorflow<2", "torch<1.9", "nvidia-", "cuda"]
-                ):
-                    results["arch_specific"].append(line)
-
-    elif file_type == "json":  # package.json
-        try:
-            package_data = json.loads(content)
-            dependencies = package_data.get("dependencies", {})
-            dev_dependencies = package_data.get("devDependencies", {})
-
-            # Combine all dependencies
-            all_deps = {}
-            all_deps.update(dependencies)
-            all_deps.update(dev_dependencies)
-
-            for pkg, version in all_deps.items():
-                dep_entry = f"{pkg}@{version}"
-                results["dependencies"].append(dep_entry)
-
-                # Check for packages with native bindings that might have ARM issues
-                if any(
-                    p in pkg.lower() for p in ["node-sass", "sharp", "canvas", "grpc"]
-                ):
-                    results["arch_specific"].append(dep_entry)
-        except json.JSONDecodeError:
-            results["error"] = "Invalid JSON format"
-
-    elif file_type in ["xml", "gradle"]:
-        # For Maven pom.xml or build.gradle files, just do basic text analysis
-        for line in content.splitlines():
-            line = line.strip()
-            if any(
-                lib in line.lower()
-                for lib in ["native", "jni", "x86", "amd64", "intel", "arm", "graviton"]
-            ):
-                results["arch_specific"].append(line)
 
     return results

@@ -1,9 +1,7 @@
 import os
 import re
 import json
-
 import sys
-
 
 from helpers.github_api import (
     get_repository_info,
@@ -11,35 +9,30 @@ from helpers.github_api import (
     get_file_content,
 )
 from helpers.file_analyzer import (
-    analyze_terraform_file,
-    analyze_dockerfile,
-    analyze_dependencies,
+    extract_instance_types_from_terraform_file,
+    parse_dockerfile_content,
+    extract_dependencies,
 )
 from compatibility_checker import check_arm_compatibility
 from llm_tools.llm_agent import get_llm_assessment
 from config import ENABLE_LLM, ENABLED_ANALYZERS
 
-# 파일 타입과 분석기 매핑 정의
+# 파일 타입과 분석기 매핑 정의 - 간소화
 FILE_TYPE_ANALYZERS = {
     "terraform": {
         "patterns": [r"\.tf$"],  # Terraform 파일 패턴
         "analysis_key": "terraform_analysis",
-        "analyzer": analyze_terraform_file,
+        "analyzer": extract_instance_types_from_terraform_file,
     },
     "docker": {
         "patterns": [r"Dockerfile$", r"/Dockerfile"],  # Dockerfile 패턴
         "analysis_key": "dockerfile_analysis",
-        "analyzer": analyze_dockerfile,
+        "analyzer": parse_dockerfile_content,
     },
     "dependency": {
-        "patterns": [
-            r"requirements\.txt$",
-            r"package\.json$",
-            r"pom\.xml$",
-            r"build\.gradle$",
-        ],  # 의존성 파일 패턴
+        "patterns": [r"requirements\.txt$"],  # 의존성 파일 패턴 - Python만 유지
         "analysis_key": "dependency_analysis",
-        "analyzer": analyze_dependencies,
+        "analyzer": extract_dependencies,
     },
 }
 
@@ -103,7 +96,8 @@ def analyze_repository(repo_url):
             if content:
                 # 의존성 분석기는 파일 타입 인자가 필요하므로 특별 처리
                 if analyzer_name == "dependency":
-                    file_type = file_path.split(".")[-1] if "." in file_path else "txt"
+                    # 파일 타입 처리 간소화 - txt만 처리
+                    file_type = "txt"
                     analysis = analyzer_func(content, file_type)
                     if analysis:
                         results[analysis_key].append(
@@ -167,14 +161,26 @@ def save_results_to_markdown(result, output_file="result.md"):
 
         # 상세 분석 결과
         f.write("## 상세 분석\n\n")
+
+        # 인스턴스 타입 및 도커 이미지 분석
         f.write(
             f"- 인스턴스 타입: {len(result['compatibility_result'].get('instance_types', []))} 이슈\n"
         )
         f.write(
             f"- 도커 이미지: {len(result['compatibility_result'].get('docker_images', []))} 이슈\n"
         )
+
+        # 종속성 분석 상세 정보
+        dependencies = result["compatibility_result"].get("dependencies", [])
+        total_deps = len(dependencies)
+        direct_deps = sum(1 for dep in dependencies if dep.get("direct", True))
+        transitive_deps = total_deps - direct_deps
+        incompatible_deps = sum(
+            1 for dep in dependencies if dep.get("compatible") is False
+        )
+
         f.write(
-            f"- 종속성: {len(result['compatibility_result'].get('dependencies', []))} 이슈\n\n"
+            f"- 종속성: {total_deps} 분석됨 ({direct_deps} 직접, {transitive_deps} 전이적), {incompatible_deps} 이슈\n\n"
         )
 
         # 권장사항
@@ -232,8 +238,18 @@ if __name__ == "__main__":
             print(
                 f"Docker Images: {len(result['compatibility_result'].get('docker_images', []))} issues"
             )
+
+            # Enhanced dependency info
+            dependencies = result["compatibility_result"].get("dependencies", [])
+            total_deps = len(dependencies)
+            direct_deps = sum(1 for dep in dependencies if dep.get("direct", True))
+            transitive_deps = total_deps - direct_deps
+            incompatible_deps = sum(
+                1 for dep in dependencies if dep.get("compatible") is False
+            )
+
             print(
-                f"Dependencies: {len(result['compatibility_result'].get('dependencies', []))} issues"
+                f"Dependencies: {total_deps} analyzed ({direct_deps} direct, {transitive_deps} transitive), {incompatible_deps} issues"
             )
 
             # Print recommendations

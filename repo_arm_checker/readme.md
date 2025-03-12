@@ -37,6 +37,19 @@ python arm_checker.py --repo ./local/repo/path
 | `--verbose`   | 상세 정보 출력 모드 활성화              |
 | `--skip-deps` | 종속성 검사 건너뛰기                    |
 
+## 현재 지원 기능
+
+현재 이 도구는 다음 항목만 분석합니다:
+
+- Python requirements.txt 패키지 종속성
+
+향후 버전에서는 다음 기능이 추가될 예정입니다:
+
+- package.json (Node.js)
+- pom.xml (Java)
+- Dockerfile 이미지 분석
+- Terraform 인스턴스 분석
+
 ## 결과 해석하기
 
 검사 결과는 다음과 같은 형식으로 제공됩니다:
