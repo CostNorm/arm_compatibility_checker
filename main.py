@@ -207,9 +207,7 @@ if __name__ == "__main__":
     parser.add_argument("--repo", required=True, help="GitHub repository URL")
     parser.add_argument("--output", default="results.json", help="Output file path")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
-    parser.add_argument(
-        "--skip-deps", action="store_true", help="Skip dependency checks"
-    )
+    # Removed --skip-deps argument
 
     args = parser.parse_args()
 

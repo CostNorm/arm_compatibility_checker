@@ -24,18 +24,15 @@ python arm_checker.py --repo [REPOSITORY_URL]
 # GitHub 리포지토리 검사
 python arm_checker.py --repo https://github.com/username/project
 
-# 로컬 리포지토리 검사
-python arm_checker.py --repo ./local/repo/path
 ```
 
 ## 명령어 옵션
 
-| 옵션          | 설명                                    |
-| ------------- | --------------------------------------- |
-| `--repo`      | 검사할 리포지토리의 URL 또는 경로       |
-| `--output`    | 결과 출력 파일 (기본값: `results.json`) |
-| `--verbose`   | 상세 정보 출력 모드 활성화              |
-| `--skip-deps` | 종속성 검사 건너뛰기                    |
+| 옵션        | 설명                                    |
+| ----------- | --------------------------------------- |
+| `--repo`    | 검사할 리포지토리의 URL 또는 경로       |
+| `--output`  | 결과 출력 파일 (기본값: `results.json`) |
+| `--verbose` | 상세 정보 출력 모드 활성화              |
 
 ## 현재 지원 기능
 
@@ -45,8 +42,7 @@ python arm_checker.py --repo ./local/repo/path
 
 향후 버전에서는 다음 기능이 추가될 예정입니다:
 
-- package.json (Node.js)
-- pom.xml (Java)
+- package.json (Node.js), pom.xml (Java) 와 같이 다른 언어의 패키지 종속성 정의 파일 지원
 - Dockerfile 이미지 분석
 - Terraform 인스턴스 분석
 
@@ -54,6 +50,7 @@ python arm_checker.py --repo ./local/repo/path
 
 검사 결과는 다음과 같은 형식으로 제공됩니다:
 
-- ✅ ARM 호환: 리포지토리가 ARM 아키텍처와 완벽하게 호환됩니다.
-- ⚠️ 부분 호환: 일부 코드나 종속성에 호환성 문제가 있을 수 있습니다.
-- ❌ 비호환: 중요한 호환성 문제가 발견되었습니다.
+- **완전 호환(True)**: ARM 전용 wheel 또는 플랫폼 독립적인 universal wheel 존재 시
+- **부분 호환(partial)**: 소스 배포판만 존재하며 C/Cython 확장 코드가 있어 컴파일 필요 시
+- **비호환(False)**: ARM 지원 wheel이나 소스 배포판이 전혀 없을 시
+- **판단 불가(unknown)**: PyPI API 오류 등 예외 발생 시
