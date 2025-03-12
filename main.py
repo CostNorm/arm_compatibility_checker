@@ -1,7 +1,6 @@
 import re
 import json
 
-
 from helpers.github_api import (
     get_repository_info,
     get_repository_tree,
@@ -12,7 +11,9 @@ from helpers.file_analyzer import (
     parse_dockerfile_content,
     extract_dependencies,
 )
-from compatibility_checker import check_arm_compatibility
+
+# Simplified import using the new package structure
+from analyze_tools import check_arm_compatibility
 from llm_tools.llm_agent import get_llm_assessment
 from config import ENABLE_LLM, ENABLED_ANALYZERS
 

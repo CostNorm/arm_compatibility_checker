@@ -6,7 +6,7 @@ from typing import Dict, List, Any
 import os
 
 # Import the package compatibility checker
-from analyze_tools.package_compatibility import (
+from analyze_tools.dependency_tools.package_compatibility import (
     check_pypi_package_arm_compatibility,
 )
 
