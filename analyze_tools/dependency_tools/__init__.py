@@ -2,7 +2,7 @@
 Dependency analysis tools for ARM64 compatibility checking
 """
 
-from analyze_tools.dependency_tools.dependency_resolver import (
+from analyze_tools.dependency_tools.dependency_analyzer import (
     analyze_dependency_compatibility,
     analyze_requirements_with_pipgrip,
 )

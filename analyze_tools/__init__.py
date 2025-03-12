@@ -12,7 +12,7 @@ from analyze_tools.terraform_tools.terraform_analyzer import (
     analyze_terraform_compatibility,
 )
 from analyze_tools.docker_tools.docker_analyzer import analyze_docker_compatibility
-from analyze_tools.dependency_tools.dependency_resolver import (
+from analyze_tools.dependency_tools.dependency_analyzer import (
     analyze_dependency_compatibility,
 )
 
