@@ -1,9 +1,8 @@
 import re
-import json
 import subprocess
 import tempfile
 import logging
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Any
 import os
 
 # Import the package compatibility checker

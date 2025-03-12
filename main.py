@@ -1,7 +1,6 @@
-import os
 import re
 import json
-import sys
+
 
 from helpers.github_api import (
     get_repository_info,

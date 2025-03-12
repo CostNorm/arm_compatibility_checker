@@ -1,5 +1,4 @@
 import re
-import json
 
 
 def extract_instance_types_from_terraform_file(content):
