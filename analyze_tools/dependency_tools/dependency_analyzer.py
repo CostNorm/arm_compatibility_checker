@@ -10,6 +10,9 @@ from analyze_tools.dependency_tools.package_compatibility import (
     check_pypi_package_arm_compatibility,
 )
 
+# Import the JavaScript compatibility checker
+from analyze_tools.dependency_tools.js_compatibility import analyze_package_json
+
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -293,6 +296,43 @@ def analyze_dependency_compatibility(dependency_analysis):
                         reason = f"Transitive dependency {package_info} (required by {parent}) may have ARM64 compatibility issues: {package.get('reason')}"
                         recommendations.append(
                             f"Test {parent} with its dependency {package_info} on ARM64 for compatibility"
+                        )
+
+                    reasoning.append(reason)
+
+        elif file_name == "package.json":
+            # Analyze JavaScript dependencies from package.json
+            content = dep_analysis.get("content", "")
+            if not content:
+                continue
+
+            # Analyze the package.json content
+            js_packages = analyze_package_json(content)
+
+            for package in js_packages:
+                package["file"] = file_path
+                dependency_results.append(package)
+
+                # Generate recommendations for JS packages
+                if package.get("compatible") is False:
+                    package_info = f"{package['name']}@{package.get('version', '')}"
+                    reason = f"JavaScript package {package_info} is not compatible with ARM64: {package.get('reason')}"
+                    recommendations.append(
+                        f"Replace {package_info} with an ARM64 compatible alternative in {file_path}"
+                    )
+                    reasoning.append(reason)
+
+                elif package.get("compatible") == "partial":
+                    package_info = f"{package['name']}@{package.get('version', '')}"
+                    reason = f"JavaScript package {package_info} may have ARM64 compatibility issues: {package.get('reason')}"
+
+                    if package.get("dev_dependency", False):
+                        recommendations.append(
+                            f"Test dev dependency {package_info} on ARM64 (may only affect build environment)"
+                        )
+                    else:
+                        recommendations.append(
+                            f"Test {package_info} on ARM64 and check for native code compatibility issues"
                         )
 
                     reasoning.append(reason)

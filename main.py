@@ -17,7 +17,7 @@ from analyze_tools import check_arm_compatibility
 from llm_tools.llm_agent import get_llm_assessment
 from config import ENABLE_LLM, ENABLED_ANALYZERS
 
-# 파일 타입과 분석기 매핑 정의 - 간소화
+# 파일 타입과 분석기 매핑 정의 - JavaScript 추가
 FILE_TYPE_ANALYZERS = {
     "terraform": {
         "patterns": [r"\.tf$"],  # Terraform 파일 패턴
@@ -30,7 +30,10 @@ FILE_TYPE_ANALYZERS = {
         "analyzer": parse_dockerfile_content,
     },
     "dependency": {
-        "patterns": [r"requirements\.txt$"],  # 의존성 파일 패턴 - Python만 유지
+        "patterns": [
+            r"requirements\.txt$",
+            r"package\.json$",
+        ],  # 의존성 파일 패턴 - Python, JavaScript 추가
         "analysis_key": "dependency_analysis",
         "analyzer": extract_dependencies,
     },
@@ -44,6 +47,29 @@ def extract_repo_info(repo_url):
     if not match:
         raise ValueError("Invalid GitHub repository URL")
     return match.group(1), match.group(2)
+
+
+def extract_dependencies(content, file_type):
+    """
+    Extract dependencies from requirements.txt and package.json files
+    """
+    results = {"dependencies": [], "content": content}
+
+    if file_type == "txt":  # requirements.txt
+        # Extract package names and versions
+        for line in content.splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                results["dependencies"].append(line)
+    elif file_type == "json":  # package.json
+        # For package.json, we'll just store the content and let the analyzer handle it
+        try:
+            # Basic validation of JSON
+            json.loads(content)
+        except json.JSONDecodeError:
+            results["dependencies"].append("Invalid JSON format")
+
+    return results
 
 
 def analyze_repository(repo_url):
@@ -96,8 +122,14 @@ def analyze_repository(repo_url):
             if content:
                 # 의존성 분석기는 파일 타입 인자가 필요하므로 특별 처리
                 if analyzer_name == "dependency":
-                    # 파일 타입 처리 간소화 - txt만 처리
-                    file_type = "txt"
+                    # Determine file type
+                    if file_path.endswith("requirements.txt"):
+                        file_type = "txt"
+                    elif file_path.endswith("package.json"):
+                        file_type = "json"
+                    else:
+                        continue
+
                     analysis = analyzer_func(content, file_type)
                     if analysis:
                         results[analysis_key].append(

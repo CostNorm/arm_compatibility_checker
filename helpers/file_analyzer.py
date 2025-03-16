@@ -1,4 +1,5 @@
 import re
+import json
 
 
 def extract_instance_types_from_terraform_file(content):
@@ -51,7 +52,7 @@ def parse_dockerfile_content(content):
 
 def extract_dependencies(content, file_type):
     """
-    Extract dependencies from requirements.txt files
+    Extract dependencies from requirements.txt and package.json files
     """
     results = {"dependencies": [], "content": content}
 
@@ -61,5 +62,23 @@ def extract_dependencies(content, file_type):
             line = line.strip()
             if line and not line.startswith("#"):
                 results["dependencies"].append(line)
+    elif file_type == "json":  # package.json
+        # For package.json, we'll just store the content and let the analyzer handle it
+        try:
+            # Basic validation of JSON
+            package_data = json.loads(content)
+            # Extract dependency names for initial analysis
+            deps = package_data.get("dependencies", {})
+            dev_deps = package_data.get("devDependencies", {})
+
+            # Add all dependencies to the results
+            for name, version in deps.items():
+                results["dependencies"].append(f"{name}@{version}")
+
+            for name, version in dev_deps.items():
+                results["dependencies"].append(f"{name}@{version} (dev)")
+
+        except json.JSONDecodeError:
+            results["dependencies"].append("Invalid JSON format")
 
     return results
