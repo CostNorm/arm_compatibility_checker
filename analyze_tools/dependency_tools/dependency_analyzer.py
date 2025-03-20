@@ -4,10 +4,15 @@ import tempfile
 import logging
 from typing import Dict, List, Any
 import os
+import sys
+
+sys.path.append(os.path.dirname("/Users/woohyeok/development/2025/alpha/"))
 
 # Import the package compatibility checker
 from analyze_tools.dependency_tools.package_compatibility import (
+    check_arm64_wheel_tester,
     check_pypi_package_arm_compatibility,
+    try_source_compilation,
 )
 
 # Import the JavaScript compatibility checker
@@ -154,18 +159,10 @@ def analyze_requirements_with_pipgrip(content: str) -> List[Dict[str, Any]]:
             clean_name = clean_package_name(package_name)
 
             # Check compatibility
-            compatibility = check_pypi_package_arm_compatibility(package_name)
-
-            results.append(
-                {
-                    "dependency": original_line,
-                    "name": package_name,
-                    "version_spec": version_spec,
-                    "compatible": compatibility.get("compatible"),
-                    "reason": compatibility.get("reason"),
-                    "direct": True,  # Mark as direct dependency
-                }
+            compatibility_result = check_package_compatibility(
+                package_name, version_spec, original_line, direct=True
             )
+            results.append(compatibility_result)
 
             # Now process transitive dependencies
             if clean_name in dependency_tree:
@@ -174,40 +171,22 @@ def analyze_requirements_with_pipgrip(content: str) -> List[Dict[str, Any]]:
                     if not any(
                         r["name"].lower() == transitive_dep.lower() for r in results
                     ):
-                        # Check compatibility
-                        trans_compatibility = check_pypi_package_arm_compatibility(
-                            transitive_dep
+                        compatibility_result = check_package_compatibility(
+                            transitive_dep,
+                            None,
+                            transitive_dep,
+                            direct=False,
+                            parent=clean_name,
                         )
-
-                        results.append(
-                            {
-                                "dependency": transitive_dep,
-                                "name": transitive_dep,
-                                "version_spec": None,
-                                "compatible": trans_compatibility.get("compatible"),
-                                "reason": trans_compatibility.get("reason"),
-                                "direct": False,  # Mark as transitive dependency
-                                "parent": clean_name,  # Link to parent package
-                            }
-                        )
+                        results.append(compatibility_result)
 
         # Look for any remaining dependencies in the tree that weren't processed
         for pkg, deps in dependency_tree.items():
             if not any(r["name"].lower() == pkg.lower() for r in results):
-                # Check compatibility
-                pkg_compatibility = check_pypi_package_arm_compatibility(pkg)
-
-                results.append(
-                    {
-                        "dependency": pkg,
-                        "name": pkg,
-                        "version_spec": None,
-                        "compatible": pkg_compatibility.get("compatible"),
-                        "reason": pkg_compatibility.get("reason"),
-                        "direct": False,  # Not a direct dependency
-                        "parent": None,  # Couldn't determine parent
-                    }
+                compatibility_result = check_package_compatibility(
+                    pkg, None, pkg, direct=False, parent=None
                 )
+                results.append(compatibility_result)
 
     except Exception as e:
         logger.error(f"Error in dependency resolution: {str(e)}")
@@ -228,6 +207,93 @@ def analyze_requirements_with_pipgrip(content: str) -> List[Dict[str, Any]]:
                 )
 
     return results
+
+
+def check_package_compatibility(
+    package_name, version_spec=None, original_line=None, direct=True, parent=None
+):
+    """
+    패키지의 ARM 호환성을 검사하는 함수입니다.
+
+    Args:
+        package_name (str): 패키지 이름
+        version_spec (str, optional): 버전 스펙
+        original_line (str, optional): 원본 의존성 라인
+        direct (bool): 직접 의존성 여부
+        parent (str, optional): 부모 패키지 이름
+
+    Returns:
+        dict: 호환성 검사 결과
+    """
+    debug_info = {
+        "pypi_check": None,
+        "wheel_tester_check": None,
+        "source_compilation": None,
+    }
+
+    # 1. ARM 휠 가용성 확인
+    compatibility = check_pypi_package_arm_compatibility(package_name)
+    debug_info["pypi_check"] = compatibility
+    if compatibility.get("compatible") == True:
+        return {
+            "dependency": original_line or package_name,
+            "name": package_name,
+            "version_spec": version_spec,
+            "compatible": compatibility.get("compatible"),
+            "reason": compatibility.get("reason"),
+            "direct": direct,
+            "parent": parent,
+            "debug_info": debug_info,
+        }
+
+    # 2. ARM64 Python Wheel Tester 결과 확인
+    compatibility = check_arm64_wheel_tester(package_name, version_spec)
+    debug_info["wheel_tester_check"] = compatibility
+    if compatibility.get("compatible") == True:
+        return {
+            "dependency": original_line or package_name,
+            "name": package_name,
+            "version_spec": version_spec,
+            "compatible": compatibility.get("compatible"),
+            "reason": compatibility.get("reason"),
+            "direct": direct,
+            "parent": parent,
+            "debug_info": debug_info,
+        }
+
+    # 3. 소스 컴파일 시도
+    compatibility = try_source_compilation(package_name, version_spec)
+    debug_info["source_compilation"] = compatibility
+    if compatibility.get("compatible") == True:
+        return {
+            "dependency": original_line or package_name,
+            "name": package_name,
+            "version_spec": version_spec,
+            "compatible": compatibility.get("compatible"),
+            "reason": compatibility.get("reason"),
+            "direct": direct,
+            "parent": parent,
+            "debug_info": debug_info,
+        }
+
+    # 모든 검사가 실패한 경우
+    detailed_reason = f"""
+    호환성 검사 실패 상세 정보:
+    1. PyPI ARM 휠 검사: {debug_info['pypi_check'].get('reason', '정보 없음')}
+    2. ARM64 Wheel Tester: {debug_info['wheel_tester_check'].get('reason', '정보 없음')}
+    3. 소스 컴파일: {debug_info['source_compilation'].get('reason', '정보 없음')}
+    """
+
+    return {
+        "dependency": original_line or package_name,
+        "name": package_name,
+        "version_spec": version_spec,
+        "compatible": compatibility.get("compatible", False),
+        "reason": detailed_reason,
+        "direct": direct,
+        "parent": parent,
+        "debug_info": debug_info,
+    }
 
 
 def analyze_dependency_compatibility(dependency_analysis):
@@ -345,3 +411,17 @@ def analyze_dependency_compatibility(dependency_analysis):
         "recommendations": unique_recommendations,
         "reasoning": reasoning,
     }
+
+
+if __name__ == "__main__":
+
+    content = """
+    thrift
+    tensorflow-data-validation
+    """
+
+    # 의존성 분석 실행
+    dependency_analysis = analyze_requirements_with_pipgrip(content)
+
+    # 결과 출력
+    print(dependency_analysis)
