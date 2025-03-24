@@ -57,3 +57,8 @@ logs/
 *.log
 output/
 temp/
+
+
+# layer
+deployment/
+deployment.zip
