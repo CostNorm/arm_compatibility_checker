@@ -155,11 +155,15 @@ def check_compatibility(github_url):
         )
 
         # 종합 호환성 메시지
-        summary = f"{icon} *`{github_url}`* 저장소의 ARM 호환성: *{compatibility}*"
+        summary = f"{icon} {github_url} 저장소의 ARM 호환성: *{compatibility}*"
         suggestions.append(summary)
 
         # 상세 분석 정보 추가
         suggestions.append("\n*상세 분석 결과:*")
+
+        suggestions.append(
+            f"compatibility_result: {json.dumps(compatibility_result, indent=2)[:2500]}..."
+        )
 
         # 인스턴스 유형 문제
         instance_types = compatibility_result.get("instance_types", [])
@@ -195,6 +199,8 @@ def check_compatibility(github_url):
             suggestions.append("\n*권장사항:*")
             for rec in recommendations:
                 suggestions.append(f"• {rec}")
+
+        print(f"suggestions: {suggestions}")
 
         return {
             "repository": f"{owner}/{repo}",
