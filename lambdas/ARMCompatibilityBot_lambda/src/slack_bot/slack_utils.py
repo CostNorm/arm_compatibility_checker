@@ -228,7 +228,7 @@ def format_help_blocks(bot_name: str = "bot") -> List[Dict[str, Any]]:
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"• `@{bot_name} analyze https://github.com/user/repo`\n• `@{bot_name} help`",
+                "text": f"• `{bot_name} analyze https://github.com/user/repo`\n• `{bot_name} help`",
             },
         },
     ]
@@ -243,7 +243,7 @@ def format_unknown_command_blocks(
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"<@{user_id}> Sorry, I didn't understand that. Try `@{bot_name} help`.",
+                "text": f"<@{user_id}> Sorry, I didn't understand that. Try `{bot_name} help`.",
             },
         }
     ]
