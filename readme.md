@@ -1,56 +1,268 @@
-# Repo ARM Checker
+# ARM Compatibility Bot (for Slack)
 
-리포지토리의 ARM 아키텍처 호환성을 검사하는 도구입니다.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- Optional license badge -->
 
-## 설치 방법
+## README 언어 선택
 
-```bash
-git clone https://github.com/username/repo_arm_checker.git
-cd repo_arm_checker
-pip install -r requirements.txt
+- [한국어 번역](readme.ko.md)
+- [English](readme.md)
+
+## Overview
+
+The ARM Compatibility Bot is a Slack application designed to help developers and operations teams assess the ARM64 compatibility of their GitHub repositories. This is particularly useful when planning migrations to ARM-based compute platforms like AWS Graviton processors.
+
+The bot listens for commands in Slack, fetches the specified GitHub repository, analyzes various configuration and dependency files, and reports potential compatibility issues directly back into the Slack thread. It can optionally leverage AWS Bedrock Language Models (LLMs) to provide a more human-readable summary of the findings.
+
+## Features
+
+- **Slack Integration:** Interact with the bot directly within Slack using mentions (`@ARMCompatBot analyze ...`).
+- **GitHub Repository Analysis:** Fetches repository contents via the GitHub API.
+- **Modular Analyzers:** Supports analysis of:
+  - **Terraform (`.tf`):** Checks EC2 instance types and suggests ARM equivalents (e.g., Graviton `t4g`, `m6g`, `c7g`, etc.).
+  - **Docker (`Dockerfile`):** Examines base images for known ARM compatibility or multi-arch support.
+  - **Dependencies:**
+    - **Python (`requirements.txt`):** Checks PyPI packages using PyPI API data and external `arm64-python-wheel-tester` results for native code compilation issues.
+    - **JavaScript (`package.json`):** Checks npm packages using heuristics and the npm registry for native dependencies (`node-gyp`, known problematic packages).
+- **Configurable Analysis:** Easily enable or disable specific analyzers via environment variables.
+- **LLM Summarization (Optional):** Uses AWS Bedrock (e.g., Claude 3 Sonnet/Haiku) to provide a natural language summary of the analysis results and recommendations.
+- **Asynchronous Processing:** Uses AWS SQS to decouple Slack request handling from the potentially long-running analysis task, ensuring Slack's 3-second timeout is met.
+- **Secure:** Verifies Slack request signatures to ensure requests originate from Slack.
+- **Extensible:** Designed with interfaces and clear separation of concerns to make adding new analyzers straightforward.
+
+## Architecture
+
+The bot utilizes a serverless architecture on AWS:
+
+```
++---------+      +-----------------+      +-------------+      +-------------------------+      +----------+
+|  Slack  |<---->| API Gateway     |<---->| SQS Queue   |<---->| ARMCompatibilityBot     |<---->|  GitHub  |
+| (User)  |      | (Gateway Lambda)|      |             |      | (Processing Lambda)     |      |   API    |
++---------+      +-----------------+      +-------------+      +-------------------------+      +----------+
+     ^                                                             |          ^
+     |                                                             |          | LLM Summary
+     |-------------------------------------------------------------+          v
+                                                                      +---------------+
+                                                                      | AWS Bedrock   |
+                                                                      | (LLM Service) |
+                                                                      +---------------+
 ```
 
-## 사용 방법
+1. **Slack:** Users interact with the bot via mentions (`@ARMCompatBot analyze <repo_url>`).
+2. **API Gateway (Gateway Lambda):** Receives the HTTPS request from Slack.
+   - Verifies the Slack request signature using the `SLACK_SIGNING_SECRET`.
+   - Performs the initial Slack challenge handshake if necessary.
+   - If valid, places the entire Slack event payload into an SQS queue.
+   - Immediately returns a `200 OK` response to Slack to meet the 3-second requirement.
+3. **SQS Queue:** Acts as a buffer, decoupling the gateway from the main processing logic. This handles Slack retries and allows for potentially longer analysis times.
+4. **ARMCompatibilityBot (Processing Lambda):**
+   - Triggered by new messages in the SQS queue.
+   - Parses the Slack event from the SQS message (`sqs_processor.py`).
+   - Initializes core services (`GithubService`, `LLMService`) and the `AnalysisOrchestrator`.
+   - The `SlackHandler` processes the command (`analyze` or `help`).
+   - If `analyze`:
+     - Sends an acknowledgment message back to the Slack thread.
+     - The `AnalysisOrchestrator` uses the `GithubService` to fetch repository data.
+     - Relevant files are passed to _enabled_ `Analyzers` (Terraform, Docker, Dependency).
+     - Analyzers perform checks (e.g., instance types, base images, package compatibility).
+     - Results are aggregated.
+     - (Optional) The `LLMService` summarizes the results using AWS Bedrock.
+     - The `SlackHandler` formats the results (LLM summary or structured data) using `slack/utils.py`.
+     - The final result message is posted back to the original Slack thread by updating the acknowledgment message.
+5. **GitHub API:** Used by `GithubService` to fetch repository information and file contents.
+6. **AWS Bedrock:** Used by `LLMService` to generate analysis summaries.
 
-### 기본 사용법
+## Setup & Deployment
 
-```bash
-python arm_checker.py --repo [REPOSITORY_URL]
+### Prerequisites
+
+- AWS Account
+- Python 3.9+ installed locally
+- AWS CLI configured with appropriate permissions (SQS, Lambda, IAM, CloudWatch Logs, Bedrock)
+- AWS SAM CLI (recommended for deployment) or similar serverless deployment tool
+- A Slack workspace and permissions to create Slack Apps.
+- A GitHub Personal Access Token (PAT) with `repo` scope (read access to repositories).
+
+### Steps
+
+1. **Create Slack App:**
+
+   - Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app.
+   - **Add Features & Functionality:**
+     - **Bots:** Add a Bot User.
+     - **Event Subscriptions:**
+       - Enable Events.
+       - _Subscribe to bot events:_ Add `app_mention`.
+       - You will need the API Gateway URL _after_ deployment for the Request URL field. Slack will send a challenge request here that the gateway Lambda must handle.
+     - **Permissions (OAuth & Permissions):**
+       - Add the following Bot Token Scopes:
+         - `app_mentions:read` (to receive mentions)
+         - `chat:write` (to post messages)
+         - `commands` (Optional: if you plan to add slash commands later)
+       - Install the app to your workspace.
+   - **Note down:**
+     - `SLACK_BOT_TOKEN` (starts with `xoxb-`) from the "OAuth & Permissions" page.
+     - `SLACK_SIGNING_SECRET` from the "Basic Information" page.
+
+2. **Create GitHub Token:**
+
+   - Go to your GitHub settings -> Developer settings -> Personal access tokens -> Tokens (classic).
+   - Generate a new token with the `repo` scope (or `public_repo` if only analyzing public repositories).
+   - **Note down:** The generated `GITHUB_TOKEN`. **Treat this like a password.**
+
+3. **Configure Environment Variables:**
+
+   - Create a `.env` file in the _root_ of the `ARMCompatibilityBot/src` directory for local development (this file should **NOT** be committed to Git).
+   - Populate it with the necessary values (see [Configuration](#configuration) section below).
+   - For deployment, these variables need to be set directly in the Lambda function configurations (both the Gateway Lambda and the Processing Lambda where applicable).
+
+4. **Deploy using AWS SAM (Recommended):**
+
+   - You will need a `template.yaml` file (not provided in the code snippet, but standard for SAM). This template should define:
+     - The SQS Queue.
+     - The IAM Roles for the Lambdas (permissions for SQS, CloudWatch, GitHub access via internet, Bedrock `InvokeModel`).
+     - The **Gateway Lambda Function** (`slack_bot_gateway/lambda_function.py`):
+       - Triggered by API Gateway (HTTP API recommended).
+       - Environment variables: `SQS_QUEUE_URL`, `SLACK_SIGNING_SECRET`.
+     - The **Processing Lambda Function** (`ARMCompatibilityBot/src/lambda_function.py`):
+       - Triggered by the SQS Queue.
+       - Environment variables: All variables listed in [Configuration](#configuration), including `SQS_QUEUE_URL`.
+       - Set an appropriate memory size (e.g., 512MB or more) and timeout (e.g., 1-5 minutes) due to potential network calls and analysis complexity.
+   - Run `sam build` and `sam deploy --guided`.
+
+5. **Update Slack Event Subscription URL:**
+
+   - Once deployed, copy the API Gateway Invoke URL.
+   - Go back to your Slack App configuration -> Event Subscriptions.
+   - Paste the URL into the "Request URL" field. Slack will send a `url_verification` request. The Gateway Lambda should handle this challenge and Slack should show "Verified".
+   - Save changes.
+
+6. **Invite Bot to Channels:** Invite the `@ARMCompatBot` (or whatever you named it) to the Slack channels where you want to use it.
+
+## Usage
+
+Interact with the bot in a channel it has been invited to, or via direct message:
+
+1. **Analyze a Repository:**
+
+   ```slack
+   @ARMCompatBot analyze https://github.com/owner/repo-name
+   ```
+
+   Replace `https://github.com/owner/repo-name` with the actual URL of the public or private (if your `GITHUB_TOKEN` has access) repository you want to analyze.
+
+2. **Get Help:**
+
+   ```slack
+   @ARMCompatBot help
+   ```
+
+The bot will first post an acknowledgment message in a thread, then update that message with the analysis results or an LLM summary once complete. If errors occur, they will be reported in the thread.
+
+## Configuration
+
+The bot uses environment variables for configuration. These are primarily managed in `config.py` and accessed by various modules.
+
+| Variable                     | `src/config.py` | Gateway Lambda | Description                                                                                             | Default         | Required |
+| :--------------------------- | :-------------: | :------------: | :------------------------------------------------------------------------------------------------------ | :-------------- | :------: |
+| `GITHUB_TOKEN`               |       ✅        |       ❌       | GitHub Personal Access Token with `repo` scope.                                                         | `""`            |    ✅    |
+| `SLACK_BOT_TOKEN`            |       ✅        |       ❌       | Slack Bot Token (starts with `xoxb-`).                                                                  | `""`            |    ✅    |
+| `SLACK_SIGNING_SECRET`       |       ✅        |       ✅       | Slack App Signing Secret. Used by Gateway to verify requests.                                           | `""`            |    ✅    |
+| `SQS_QUEUE_URL`              |       ✅        |       ✅       | The URL of the SQS queue used to buffer requests.                                                       | `None`          |    ✅    |
+| `ENABLE_LLM`                 |       ✅        |       ❌       | Set to `True` to enable LLM summarization, `False` otherwise.                                           | `True`          |    No    |
+| `BEDROCK_REGION`             |       ✅        |       ❌       | AWS region where Bedrock is available (e.g., `us-east-1`). Required if `ENABLE_LLM` is `True`.          | `us-east-1`     |  If LLM  |
+| `BEDROCK_MODEL_ID`           |       ✅        |       ❌       | Bedrock Model ID (e.g., `anthropic.claude-3-sonnet-20240229-v1:0`). Required if `ENABLE_LLM` is `True`. | See `config.py` |  If LLM  |
+| `LLM_LANGUAGE`               |       ✅        |       ❌       | Language for LLM prompts and responses (e.g., `english`, `korean`).                                     | `english`       |    No    |
+| `ENABLE_TERRAFORM_ANALYZER`  |       ✅        |       ❌       | Set to `True` to enable the Terraform analyzer.                                                         | `False`         |    No    |
+| `ENABLE_DOCKER_ANALYZER`     |       ✅        |       ❌       | Set to `True` to enable the Docker analyzer.                                                            | `False`         |    No    |
+| `ENABLE_DEPENDENCY_ANALYZER` |       ✅        |       ❌       | Set to `True` to enable the Dependency analyzer (Python & JS).                                          | `True`          |    No    |
+| `LOG_LEVEL`                  |       ✅        |       ✅       | Logging level for the application (e.g., `INFO`, `DEBUG`, `WARNING`).                                   | `INFO`          |    No    |
+
+_(Note: `python-dotenv` is used to load these from a `.env` file during local development if it exists.)_
+
+## Code Structure
+
+```
+├── src/                        # Main source code for the Processing Lambda
+│   ├── analysis_orchestrator.py # Coordinates the analysis process
+│   ├── config.py               # Loads and provides configuration
+│   ├── lambda_function.py      # AWS Lambda handler for processing SQS messages
+│   ├── sqs_processor.py        # Parses SQS message body to get Slack event
+│   │
+│   ├── analyzers/              # Code for specific analysis modules
+│   │   ├── __init__.py
+│   │   ├── base_analyzer.py    # Abstract base class for analyzers
+│   │   ├── docker_analyzer.py  # Analyzes Dockerfiles
+│   │   ├── terraform_analyzer.py # Analyzes Terraform instance types
+│   │   └── dependency_analyzer/ # Analyzes software dependencies
+│   │       ├── __init__.py
+│   │       ├── base_checker.py # Abstract base class for dependency checkers
+│   │       ├── js_checker.py   # Checks Node.js (package.json) dependencies
+│   │       ├── manager.py      # Manages different dependency checkers
+│   │       └── python_checker.py # Checks Python (requirements.txt) dependencies
+│   │
+│   ├── core/                   # Core interfaces or shared components
+│   │   └── interfaces.py       # Defines Analyzer and DependencyChecker interfaces
+│   │
+│   ├── services/               # Clients for interacting with external APIs
+│   │   ├── __init__.py
+│   │   ├── github_service.py   # Interacts with the GitHub API
+│   │   └── llm_service.py      # Interacts with AWS Bedrock (Langchain)
+│   │
+│   └── slack/                  # Slack-specific interactions and formatting
+│       ├── __init__.py
+│       ├── handler.py          # Handles Slack event callbacks and commands
+│       └── utils.py            # Formats messages using Slack Block Kit
+│
+└── slack_bot_gateway/          # Source code for the Gateway Lambda
+    └── lambda_function.py      # Handles Slack verification and SQS forwarding
 ```
 
-### 예시
+## Extending the Bot
 
-```bash
-# GitHub 리포지토리 검사
-python arm_checker.py --repo https://github.com/username/project
+### Adding a New Analyzer
 
-```
+1. **Create Analyzer Class:**
+   - Create a new Python file in the `src/analyzers/` directory (e.g., `my_analyzer.py`).
+   - Define a class (e.g., `MyAnalyzer`) that inherits from `analyzers.base_analyzer.BaseAnalyzer`.
+2. **Implement Abstract Methods:**
+   - `analyze(self, file_content: str, file_path: str) -> Dict[str, Any]`: Implement the logic to parse a single file's content and return raw findings.
+   - `aggregate_results(self, analysis_outputs: List[Dict[str, Any]]) -> Dict[str, Any]`: Implement logic to combine results from multiple files analysed by this type. The return dictionary should ideally contain keys like `results`, `recommendations`, `reasoning`.
+   - `relevant_file_patterns(self) -> List[str]`: Return a list of regex patterns that match file paths relevant to this analyzer (e.g., `[r"\.myconfig$"]`).
+   - `analysis_key(self) -> str`: Return the unique key under which this analyzer's aggregated results will be stored in the final output (e.g., `"my_config_findings"`).
+3. **Register Analyzer:**
+   - Open `src/analysis_orchestrator.py`.
+   - Import your new analyzer class.
+   - Add a mapping for it in the `_analyzer_instances` dictionary within the `__init__` method (e.g., `"my_analyzer": MyAnalyzer`).
+4. **Add Configuration:**
+   - Open `src/config.py`.
+   - Add a new environment variable entry in `ENABLED_ANALYZERS` (e.g., `"my_analyzer": os.environ.get("ENABLE_MY_ANALYZER", "False").lower() == "true"`).
+5. **Update LLM Prompt (Optional):**
+   - If using the LLM summary, modify the `PROMPT_TEMPLATE_STR` in `src/services/llm_service.py` to instruct the LLM on how to interpret and present findings from your new `analysis_key`.
 
-## 명령어 옵션
+### Adding a New Dependency Checker
 
-| 옵션        | 설명                                    |
-| ----------- | --------------------------------------- |
-| `--repo`    | 검사할 리포지토리의 URL 또는 경로       |
-| `--output`  | 결과 출력 파일 (기본값: `results.json`) |
-| `--verbose` | 상세 정보 출력 모드 활성화              |
+1. **Create Checker Class:**
+   - Create a new file in `src/analyzers/dependency_analyzer/` (e.g., `java_checker.py`).
+   - Define a class (e.g., `JavaDependencyChecker`) inheriting from `analyzers.dependency_analyzer.base_checker.BaseDependencyChecker`.
+2. **Implement Abstract Methods:**
+   - `parse_dependencies(self, file_content: str, file_path: str) -> List[Dict[str, Any]]`: Parse the dependency manifest file (e.g., `pom.xml`) and return a list of dependency dictionaries.
+   - `check_compatibility(self, dependency_info: Dict[str, Any]) -> Dict[str, Any]`: Check the ARM compatibility of a single parsed dependency (e.g., check Maven Central, use heuristics). Return a dictionary including `compatible` (bool/str) and `reason` (str).
+3. **Register Checker:**
+   - Open `src/analyzers/dependency_analyzer/manager.py`.
+   - Import your new checker class.
+   - Add an instance to the `_checkers` dictionary in `__init__` (e.g., `"java": JavaDependencyChecker()`).
+   - Update `_get_checker_and_type` to recognize the relevant file path (e.g., `elif file_path.lower().endswith("pom.xml"): return self._checkers.get("java"), "java"`).
+   - Update `relevant_file_patterns` in `DependencyManager` to include the pattern for the new manifest file (e.g., `r"pom\.xml$"`).
+   - (Optional) Adjust recommendation/reasoning generation in `aggregate_results` for the new language type.
 
-## 현재 지원 기능
+### Modifying Slack Messages
 
-현재 이 도구는 다음 항목만 분석합니다:
+- Edit the functions within `src/slack/utils.py` to change the structure or content of the messages sent to Slack using Block Kit.
 
-- Python requirements.txt 패키지 종속성
+## Contributing
 
-향후 버전에서는 다음 기능이 추가될 예정입니다:
+Contributions are welcome! Please feel free to submit pull requests or open issues for bugs, feature requests, or improvements.
 
-- package.json (Node.js), pom.xml (Java) 와 같이 다른 언어의 패키지 종속성 정의 파일 지원
-- Dockerfile 이미지 분석
-- Terraform 인스턴스 분석
+## License
 
-## 결과 해석하기
-
-검사 결과는 다음과 같은 형식으로 제공됩니다:
-
-- **완전 호환(True)**: ARM 전용 wheel 또는 플랫폼 독립적인 universal wheel 존재 시
-- **부분 호환(partial)**: 소스 배포판만 존재하며 C/Cython 확장 코드가 있어 컴파일 필요 시
-- **비호환(False)**: ARM 지원 wheel이나 소스 배포판이 전혀 없을 시
-- **판단 불가(unknown)**: PyPI API 오류 등 예외 발생 시
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details (if one exists).
