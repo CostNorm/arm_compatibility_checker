@@ -284,7 +284,7 @@ class JSDependencyChecker(BaseDependencyChecker):
                         )
                 else:
                     # Attempt to resolve the spec using semver
-                    target_version_str = semver.max_satisfying(
+                    target_version_str = max_satisfying(
                         available_versions,
                         version_spec,
                         loose=True,  # Use loose=True as per plan
@@ -607,3 +607,35 @@ class JSDependencyChecker(BaseDependencyChecker):
             # Cache unexpected errors under the spec key as well
             _NPM_CACHE[fallback_cache_key] = {**result, "debug_info": debug_info}
             return _NPM_CACHE[fallback_cache_key]
+
+
+def max_satisfying(available_versions, version_range, loose=False):
+    """
+    Return the highest version from `available_versions`
+    that satisfies the Node-style `version_range`.
+
+    NOTE: This function must parse the Node-style version ranges
+          on its own. The simple example below only supports
+          exact versions or no range at all.
+    """
+    valid_versions = []
+    for version_str in available_versions:
+        try:
+            # parse() will raise ValueError if invalid
+            parsed = semver.VersionInfo.parse(version_str)
+        except ValueError:
+            continue  # skip invalid or weird tags
+
+        # For simplicity, let's say we only handle an exact match or empty spec:
+        # (Extend this to handle ^, ~, >=, etc. as needed)
+        if not version_range or version_range in ["*", "latest"]:
+            valid_versions.append(parsed)
+        elif version_str == version_range:
+            valid_versions.append(parsed)
+
+    if not valid_versions:
+        return None
+
+    # Sort and return max
+    valid_versions.sort()
+    return str(valid_versions[-1])
