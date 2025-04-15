@@ -6,112 +6,174 @@ import numpy as np
 # --- 데이터 준비 (보고서 Phase 3 기반, us-east-1 On-Demand 가격) ---
 # .xlarge 인스턴스 위주로 비교 데이터를 구성합니다.
 # 실제 가격은 변동될 수 있으므로 최신 AWS 가격 정보를 참조하는 것이 좋습니다.
-data = {
-    "Instance": [
-        "t3.large",
-        "t4g.large",
-        "m5.xlarge",
-        "m6i.xlarge",
-        "m6g.xlarge",
-        "m7g.xlarge",
-        "c5.xlarge",
-        "c6i.xlarge",
-        "c6g.xlarge",
-        "c7g.xlarge",
-        "r5.xlarge",
-        "r6i.xlarge",
-        "r6g.xlarge",
-        "r7g.xlarge",
+
+# 인스턴스 데이터를 아키텍처별로 구분하여 정의
+instances_by_arch = {
+    "x86": [
+        {
+            "instance": "t3.large",
+            "family": "T",
+            "generation": "3 (Intel)",
+            "vcpu": 2,
+            "memory_gib": 8,
+            "hourly_cost_usd": 0.1040,
+            "spot_1h_avg_usd": 0.0334,
+            "price_perf_gain": None,
+        },
+        {
+            "instance": "m5.xlarge",
+            "family": "M",
+            "generation": "5 (Intel)",
+            "vcpu": 4,
+            "memory_gib": 16,
+            "hourly_cost_usd": 0.2360,
+            "spot_1h_avg_usd": 0.0647,
+            "price_perf_gain": None,
+        },
+        {
+            "instance": "m6i.xlarge",
+            "family": "M",
+            "generation": "6 (Intel)",
+            "vcpu": 4,
+            "memory_gib": 16,
+            "hourly_cost_usd": 0.2360,
+            "spot_1h_avg_usd": 0.0840,
+            "price_perf_gain": 15,
+        },
+        {
+            "instance": "c5.xlarge",
+            "family": "C",
+            "generation": "5 (Intel)",
+            "vcpu": 4,
+            "memory_gib": 8,
+            "hourly_cost_usd": 0.1920,
+            "spot_1h_avg_usd": 0.0764,
+            "price_perf_gain": None,
+        },
+        {
+            "instance": "c6i.xlarge",
+            "family": "C",
+            "generation": "6 (Intel)",
+            "vcpu": 4,
+            "memory_gib": 8,
+            "hourly_cost_usd": 0.1920,
+            "spot_1h_avg_usd": 0.0602,
+            "price_perf_gain": 15,
+        },
+        {
+            "instance": "r5.xlarge",
+            "family": "R",
+            "generation": "5 (Intel)",
+            "vcpu": 4,
+            "memory_gib": 32,
+            "hourly_cost_usd": 0.3040,
+            "spot_1h_avg_usd": 0.0902,
+            "price_perf_gain": None,
+        },
+        {
+            "instance": "r6i.xlarge",
+            "family": "R",
+            "generation": "6 (Intel)",
+            "vcpu": 4,
+            "memory_gib": 32,
+            "hourly_cost_usd": 0.3040,
+            "spot_1h_avg_usd": 0.1014,
+            "price_perf_gain": 15,
+        },
     ],
-    "Family": ["T", "T", "M", "M", "M", "M", "C", "C", "C", "C", "R", "R", "R", "R"],
-    "Architecture": [
-        "x86",
-        "Graviton",
-        "x86",
-        "x86",
-        "Graviton",
-        "Graviton",
-        "x86",
-        "x86",
-        "Graviton",
-        "Graviton",
-        "x86",
-        "x86",
-        "Graviton",
-        "Graviton",
-    ],
-    "Generation": [
-        "3 (Intel)",
-        "2 (Graviton2)",
-        "5 (Intel)",
-        "6 (Intel)",
-        "2 (Graviton2)",
-        "3 (Graviton3)",
-        "5 (Intel)",
-        "6 (Intel)",
-        "2 (Graviton2)",
-        "3 (Graviton3)",
-        "5 (Intel)",
-        "6 (Intel)",
-        "2 (Graviton2)",
-        "3 (Graviton3)",
-    ],
-    "vCPU": [2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
-    "Memory_GiB": [8, 8, 16, 16, 16, 16, 8, 8, 8, 8, 32, 32, 32, 32],
-    # Spot 가격은 AWS Spot 실시간 가격 페이지에서 확인
-    "Hourly_Cost_USD": [
-        0.1040,
-        0.0832,  # t3, t4g
-        0.2360,
-        0.2360,
-        0.1880,
-        0.2006,  # m5, m6i, m6g, m7g
-        0.1920,
-        0.1920,
-        0.1540,
-        0.1632,  # c5, c6i, c6g, c7g
-        0.3040,
-        0.3040,
-        0.2440,
-        0.2584,  # r5, r6i, r6g, r7g
-    ],
-    "Spot_1h_avg_USD": [
-        0.0334,
-        0.0199,  # t3, t4g
-        0.0647,
-        0.0840,
-        0.0371,
-        0.0551,  # m5, m6i, m6g, m7g
-        0.0764,
-        0.0602,
-        0.0469,
-        0.0576,  # c5, c6i, c6g, c7g
-        0.0902,
-        0.1014,
-        0.0586,
-        0.0414,  # r5, r6i, r6g, r7g
-    ],
-    # 보고서 기반 성능 향상 주장 (vs 이전 세대 x86 기준, 예: M6g vs M5)
-    # Graviton3는 Graviton2 대비 성능 향상
-    "Price_Perf_Gain_vs_Prev_x86 (%)": [
-        None,
-        40,  # t4g vs t3
-        None,
-        15,
-        40,
-        50,  # m6i vs m5, m6g vs m5, m7g vs m5 (추정: m6g 40% + m7g 25% on top?)
-        None,
-        15,
-        40,
-        55,  # c6i vs c5, c6g vs c5, c7g vs c5 (추정)
-        None,
-        15,
-        40,
-        50,  # r6i vs r5, r6g vs r5, r7g vs r5 (추정)
-        # 참고: Graviton3의 성능 향상(vs G2)과 결합하면 Price-Perf 향상은 더 커질 수 있음
+    "Graviton": [
+        {
+            "instance": "t4g.large",
+            "family": "T",
+            "generation": "2 (Graviton2)",
+            "vcpu": 2,
+            "memory_gib": 8,
+            "hourly_cost_usd": 0.0832,
+            "spot_1h_avg_usd": 0.0199,
+            "price_perf_gain": 40,
+        },
+        {
+            "instance": "m6g.xlarge",
+            "family": "M",
+            "generation": "2 (Graviton2)",
+            "vcpu": 4,
+            "memory_gib": 16,
+            "hourly_cost_usd": 0.1880,
+            "spot_1h_avg_usd": 0.0371,
+            "price_perf_gain": 40,
+        },
+        {
+            "instance": "m7g.xlarge",
+            "family": "M",
+            "generation": "3 (Graviton3)",
+            "vcpu": 4,
+            "memory_gib": 16,
+            "hourly_cost_usd": 0.2006,
+            "spot_1h_avg_usd": 0.0551,
+            "price_perf_gain": 50,
+        },
+        {
+            "instance": "c6g.xlarge",
+            "family": "C",
+            "generation": "2 (Graviton2)",
+            "vcpu": 4,
+            "memory_gib": 8,
+            "hourly_cost_usd": 0.1540,
+            "spot_1h_avg_usd": 0.0469,
+            "price_perf_gain": 40,
+        },
+        {
+            "instance": "c7g.xlarge",
+            "family": "C",
+            "generation": "3 (Graviton3)",
+            "vcpu": 4,
+            "memory_gib": 8,
+            "hourly_cost_usd": 0.1632,
+            "spot_1h_avg_usd": 0.0576,
+            "price_perf_gain": 55,
+        },
+        {
+            "instance": "r6g.xlarge",
+            "family": "R",
+            "generation": "2 (Graviton2)",
+            "vcpu": 4,
+            "memory_gib": 32,
+            "hourly_cost_usd": 0.2440,
+            "spot_1h_avg_usd": 0.0586,
+            "price_perf_gain": 40,
+        },
+        {
+            "instance": "r7g.xlarge",
+            "family": "R",
+            "generation": "3 (Graviton3)",
+            "vcpu": 4,
+            "memory_gib": 32,
+            "hourly_cost_usd": 0.2584,
+            "spot_1h_avg_usd": 0.0414,
+            "price_perf_gain": 50,
+        },
     ],
 }
-df = pd.DataFrame(data)
+
+# 데이터프레임 생성을 위해 리스트로 변환
+all_instances = []
+for arch, instances in instances_by_arch.items():
+    for instance in instances:
+        instance_data = {
+            "Instance": instance["instance"],
+            "Family": instance["family"],
+            "Architecture": arch,
+            "Generation": instance["generation"],
+            "vCPU": instance["vcpu"],
+            "Memory_GiB": instance["memory_gib"],
+            "Hourly_Cost_USD": instance["hourly_cost_usd"],
+            "Spot_1h_avg_USD": instance["spot_1h_avg_usd"],
+            "Price_Perf_Gain_vs_Prev_x86 (%)": instance["price_perf_gain"],
+        }
+        all_instances.append(instance_data)
+
+# 데이터프레임 생성
+df = pd.DataFrame(all_instances)
 
 # 비교를 위한 기준 x86 인스턴스 매핑 (여기서는 단순화를 위해 이전 세대 x86 사용)
 # t4g -> t3, m6g/m7g -> m5, c6g/c7g -> c5, r6g/r7g -> r5
