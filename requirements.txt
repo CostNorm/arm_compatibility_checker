@@ -7,3 +7,4 @@ pipgrip==0.10.14
 requests>=2.28.1
 PyGithub>=1.58.2
 BeautifulSoup4>=4.13.3
+semver>=3.0.0
