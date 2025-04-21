@@ -8,7 +8,7 @@ from typing import Optional
 # Refactored imports
 from config import (
     logger,  # Import the configured logger
-    SLACK_BOT_TOKEN,
+    SLACK_BOT_OAUTH_TOKEN,
     SQS_QUEUE_URL,
     GITHUB_TOKEN,  # Import GITHUB_TOKEN for service initialization
     BEDROCK_REGION,  # Import BEDROCK_REGION for service initialization
@@ -31,9 +31,9 @@ sqs = boto3.client("sqs")
 
 # Initialize Slack client
 slack_client: Optional[WebClient] = None
-if SLACK_BOT_TOKEN:
+if SLACK_BOT_OAUTH_TOKEN:
     try:
-        slack_client = WebClient(token=SLACK_BOT_TOKEN)
+        slack_client = WebClient(token=SLACK_BOT_OAUTH_TOKEN)
         # Test authentication to ensure the token is valid early
         auth_test = slack_client.auth_test()
         logger.info(

@@ -68,11 +68,11 @@ ENABLED_ANALYZERS = {
 # --- Slack Configuration ---
 # These are typically set in the Lambda environment variables by the deployment process
 # or loaded via dotenv for local testing.
-SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
+SLACK_BOT_OAUTH_TOKEN = os.environ.get("SLACK_BOT_OAUTH_TOKEN", "")
 SLACK_SIGNING_SECRET = os.environ.get("SLACK_SIGNING_SECRET", "")
 
-if not SLACK_BOT_TOKEN:
-    logger.warning("SLACK_BOT_TOKEN environment variable not set.")
+if not SLACK_BOT_OAUTH_TOKEN:
+    logger.warning("SLACK_BOT_OAUTH_TOKEN environment variable not set.")
 if not SLACK_SIGNING_SECRET:
     logger.warning("SLACK_SIGNING_SECRET environment variable not set.")
 
@@ -81,4 +81,21 @@ SQS_QUEUE_URL = os.environ.get("SQS_QUEUE_URL")
 if not SQS_QUEUE_URL:
     logger.warning(
         "SQS_QUEUE_URL environment variable not set! SQS message deletion will fail."
+    )
+
+
+# --- Docker Hub Configuration (for Manifest Inspection) ---
+# Required for accurate Docker base image analysis via API.
+# Consider using AWS Secrets Manager in production instead of env vars.
+DOCKERHUB_USERNAME = os.environ.get("DOCKERHUB_USERNAME", "")
+DOCKERHUB_PASSWORD = os.environ.get(
+    "DOCKERHUB_PASSWORD", ""
+)  # Can be password or access token
+# Alternatively, provide a pre-fetched token:
+# DOCKERHUB_TOKEN = os.environ.get("DOCKERHUB_TOKEN", "") # If using a token directly
+
+# Basic check for credentials needed for Docker Hub
+if not DOCKERHUB_USERNAME or not DOCKERHUB_PASSWORD:
+    logger.warning(
+        "DOCKERHUB_USERNAME or DOCKERHUB_PASSWORD not set. Docker manifest inspection will likely fail."
     )
