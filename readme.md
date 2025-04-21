@@ -2,9 +2,9 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) <!-- Optional license badge -->
 
-## README 언어 선택
+## README Language Selection
 
-- [한국어 번역](readme.ko.md)
+- [Korean Translation](readme.ko.md)
 - [English](readme.md)
 
 ## Overview
@@ -19,12 +19,12 @@ The bot listens for commands in Slack, fetches the specified GitHub repository, 
 - **GitHub Repository Analysis:** Fetches repository contents via the GitHub API.
 - **Modular Analyzers:** Supports analysis of:
   - **Terraform (`.tf`):** Checks EC2 instance types and suggests ARM equivalents (e.g., Graviton `t4g`, `m6g`, `c7g`, etc.).
-  - **Docker (`Dockerfile`):** Examines base images for known ARM compatibility or multi-arch support.
+  - **Docker (`Dockerfile`):** Examines `FROM` instructions (including `--platform` flags), inspects base image manifests (via Docker Hub API with caching and authentication) for multi-arch support (specifically `linux/arm64`), and identifies potentially architecture-specific commands within Dockerfile stages.
   - **Dependencies:**
-    - **Python (`requirements.txt`):** Checks PyPI packages using PyPI API data and external `arm64-python-wheel-tester` results for native code compilation issues.
-    - **JavaScript (`package.json`):** Checks npm packages using heuristics and the npm registry for native dependencies (`node-gyp`, known problematic packages).
+    - **Python (`requirements.txt`):** Checks PyPI packages using PyPI API data (classifiers, wheel types) and external `arm64-python-wheel-tester` results (fetched from GitHub Actions artifacts) to identify potential native code compilation issues on ARM64. Handles version specifiers and caching.
+    - **JavaScript (`package.json`):** Checks npm packages by resolving versions, fetching metadata from the npm registry, and inspecting fields like `cpu`, `os`, `binary`, and `scripts` (`node-gyp`) for native dependencies or ARM compatibility indicators. Handles caching.
 - **Configurable Analysis:** Easily enable or disable specific analyzers via environment variables.
-- **LLM Summarization (Optional):** Uses AWS Bedrock (e.g., Claude 3 Sonnet/Haiku) to provide a natural language summary of the analysis results and recommendations.
+- **LLM Summarization (Optional):** Uses AWS Bedrock (e.g., Claude 3 Sonnet/Haiku) via Langchain to provide a natural language summary of the analysis results and recommendations.
 - **Asynchronous Processing:** Uses AWS SQS to decouple Slack request handling from the potentially long-running analysis task, ensuring Slack's 3-second timeout is met.
 - **Secure:** Verifies Slack request signatures to ensure requests originate from Slack.
 - **Extensible:** Designed with interfaces and clear separation of concerns to make adding new analyzers straightforward.
@@ -38,9 +38,9 @@ The bot utilizes a serverless architecture on AWS:
 |  Slack  |<---->| API Gateway     |<---->| SQS Queue   |<---->| ARMCompatibilityBot     |<---->|  GitHub  |
 | (User)  |      | (Gateway Lambda)|      |             |      | (Processing Lambda)     |      |   API    |
 +---------+      +-----------------+      +-------------+      +-------------------------+      +----------+
-     ^                                                             |          ^
-     |                                                             |          | LLM Summary
-     |-------------------------------------------------------------+          v
+     ^                                                             |          ^                     ^  | Docker Hub
+     |                                                             |          | LLM Summary         |  | API/Registry
+     |-------------------------------------------------------------+          v                     +--+
                                                                       +---------------+
                                                                       | AWS Bedrock   |
                                                                       | (LLM Service) |
@@ -50,26 +50,26 @@ The bot utilizes a serverless architecture on AWS:
 1. **Slack:** Users interact with the bot via mentions (`@ARMCompatBot analyze <repo_url>`).
 2. **API Gateway (Gateway Lambda):** Receives the HTTPS request from Slack.
    - Verifies the Slack request signature using the `SLACK_SIGNING_SECRET`.
-   - Performs the initial Slack challenge handshake if necessary.
    - If valid, places the entire Slack event payload into an SQS queue.
    - Immediately returns a `200 OK` response to Slack to meet the 3-second requirement.
 3. **SQS Queue:** Acts as a buffer, decoupling the gateway from the main processing logic. This handles Slack retries and allows for potentially longer analysis times.
 4. **ARMCompatibilityBot (Processing Lambda):**
    - Triggered by new messages in the SQS queue.
    - Parses the Slack event from the SQS message (`sqs_processor.py`).
-   - Initializes core services (`GithubService`, `LLMService`) and the `AnalysisOrchestrator`.
+   - Initializes core services (`GithubService`, `LLMService`, `DockerService` indirectly via `docker_analyzer`) and the `AnalysisOrchestrator`.
    - The `SlackHandler` processes the command (`analyze` or `help`).
    - If `analyze`:
      - Sends an acknowledgment message back to the Slack thread.
      - The `AnalysisOrchestrator` uses the `GithubService` to fetch repository data.
      - Relevant files are passed to _enabled_ `Analyzers` (Terraform, Docker, Dependency).
-     - Analyzers perform checks (e.g., instance types, base images, package compatibility).
+     - Analyzers perform checks (e.g., instance types, base images/manifests, package compatibility).
      - Results are aggregated.
      - (Optional) The `LLMService` summarizes the results using AWS Bedrock.
      - The `SlackHandler` formats the results (LLM summary or structured data) using `slack/utils.py`.
      - The final result message is posted back to the original Slack thread by updating the acknowledgment message.
-5. **GitHub API:** Used by `GithubService` to fetch repository information and file contents.
-6. **AWS Bedrock:** Used by `LLMService` to generate analysis summaries.
+5. **GitHub API:** Used by `GithubService` to fetch repository information and file contents. Also used by `python_checker` to download wheel tester results.
+6. **Docker Hub Registry/API:** Used by `DockerAnalyzer` to fetch image manifests.
+7. **AWS Bedrock:** Used by `LLMService` to generate analysis summaries.
 
 ## Setup & Deployment
 
@@ -77,10 +77,11 @@ The bot utilizes a serverless architecture on AWS:
 
 - AWS Account
 - Python 3.9+ installed locally
-- AWS CLI configured with appropriate permissions (SQS, Lambda, IAM, CloudWatch Logs, Bedrock)
+- AWS CLI configured with appropriate permissions (SQS, Lambda, IAM, CloudWatch Logs, Bedrock `InvokeModel`)
 - AWS SAM CLI (recommended for deployment) or similar serverless deployment tool
 - A Slack workspace and permissions to create Slack Apps.
 - A GitHub Personal Access Token (PAT) with `repo` scope (read access to repositories).
+- (Optional but Recommended for Docker analysis) Docker Hub credentials (username/password or PAT).
 
 ### Steps
 
@@ -92,12 +93,11 @@ The bot utilizes a serverless architecture on AWS:
      - **Event Subscriptions:**
        - Enable Events.
        - _Subscribe to bot events:_ Add `app_mention`.
-       - You will need the API Gateway URL _after_ deployment for the Request URL field. Slack will send a challenge request here that the gateway Lambda must handle.
+       - You will need the API Gateway URL _after_ deployment for the Request URL field. Slack will send a challenge request here that the gateway Lambda must handle (though challenge handling via SQS is tricky, signature validation is key).
      - **Permissions (OAuth & Permissions):**
        - Add the following Bot Token Scopes:
          - `app_mentions:read` (to receive mentions)
          - `chat:write` (to post messages)
-         - `commands` (Optional: if you plan to add slash commands later)
        - Install the app to your workspace.
    - **Note down:**
      - `SLACK_BOT_TOKEN` (starts with `xoxb-`) from the "OAuth & Permissions" page.
@@ -111,9 +111,9 @@ The bot utilizes a serverless architecture on AWS:
 
 3. **Configure Environment Variables:**
 
-   - Create a `.env` file in the _root_ of the `ARMCompatibilityBot/src` directory for local development (this file should **NOT** be committed to Git).
+   - Create a `.env` file in the `alpha/lambdas/ARMCompatibilityBot/src/` directory for local development (this file should **NOT** be committed to Git). See `.env.sample`.
    - Populate it with the necessary values (see [Configuration](#configuration) section below).
-   - For deployment, these variables need to be set directly in the Lambda function configurations (both the Gateway Lambda and the Processing Lambda where applicable).
+   - For deployment, these variables need to be set directly in the Lambda function configurations (both the Gateway Lambda and the Processing Lambda where applicable). Consider using AWS Secrets Manager for sensitive values like tokens and passwords in production.
 
 4. **Deploy using AWS SAM (Recommended):**
 
@@ -122,18 +122,18 @@ The bot utilizes a serverless architecture on AWS:
      - The IAM Roles for the Lambdas (permissions for SQS, CloudWatch, GitHub access via internet, Bedrock `InvokeModel`).
      - The **Gateway Lambda Function** (`slack_bot_gateway/lambda_function.py`):
        - Triggered by API Gateway (HTTP API recommended).
-       - Environment variables: `SQS_QUEUE_URL`, `SLACK_SIGNING_SECRET`.
+       - Environment variables: `SQS_QUEUE_URL`, `SLACK_SIGNING_SECRET`, `LOG_LEVEL`.
      - The **Processing Lambda Function** (`ARMCompatibilityBot/src/lambda_function.py`):
        - Triggered by the SQS Queue.
        - Environment variables: All variables listed in [Configuration](#configuration), including `SQS_QUEUE_URL`.
-       - Set an appropriate memory size (e.g., 512MB or more) and timeout (e.g., 1-5 minutes) due to potential network calls and analysis complexity.
+       - Set an appropriate memory size (e.g., 512MB - 1024MB) and timeout (e.g., 2-5 minutes) due to potential network calls and analysis complexity.
    - Run `sam build` and `sam deploy --guided`.
 
 5. **Update Slack Event Subscription URL:**
 
    - Once deployed, copy the API Gateway Invoke URL.
    - Go back to your Slack App configuration -> Event Subscriptions.
-   - Paste the URL into the "Request URL" field. Slack will send a `url_verification` request. The Gateway Lambda should handle this challenge and Slack should show "Verified".
+   - Paste the URL into the "Request URL" field. Slack may send a `url_verification` request. The Gateway Lambda must pass signature validation for Slack to show "Verified".
    - Save changes.
 
 6. **Invite Bot to Channels:** Invite the `@ARMCompatBot` (or whatever you named it) to the Slack channels where you want to use it.
@@ -162,59 +162,69 @@ The bot will first post an acknowledgment message in a thread, then update that 
 
 The bot uses environment variables for configuration. These are primarily managed in `config.py` and accessed by various modules.
 
-| Variable                     | `src/config.py` | Gateway Lambda | Description                                                                                             | Default         | Required |
-| :--------------------------- | :-------------: | :------------: | :------------------------------------------------------------------------------------------------------ | :-------------- | :------: |
-| `GITHUB_TOKEN`               |       ✅        |       ❌       | GitHub Personal Access Token with `repo` scope.                                                         | `""`            |    ✅    |
-| `SLACK_BOT_TOKEN`            |       ✅        |       ❌       | Slack Bot Token (starts with `xoxb-`).                                                                  | `""`            |    ✅    |
-| `SLACK_SIGNING_SECRET`       |       ✅        |       ✅       | Slack App Signing Secret. Used by Gateway to verify requests.                                           | `""`            |    ✅    |
-| `SQS_QUEUE_URL`              |       ✅        |       ✅       | The URL of the SQS queue used to buffer requests.                                                       | `None`          |    ✅    |
-| `ENABLE_LLM`                 |       ✅        |       ❌       | Set to `True` to enable LLM summarization, `False` otherwise.                                           | `True`          |    No    |
-| `BEDROCK_REGION`             |       ✅        |       ❌       | AWS region where Bedrock is available (e.g., `us-east-1`). Required if `ENABLE_LLM` is `True`.          | `us-east-1`     |  If LLM  |
-| `BEDROCK_MODEL_ID`           |       ✅        |       ❌       | Bedrock Model ID (e.g., `anthropic.claude-3-sonnet-20240229-v1:0`). Required if `ENABLE_LLM` is `True`. | See `config.py` |  If LLM  |
-| `LLM_LANGUAGE`               |       ✅        |       ❌       | Language for LLM prompts and responses (e.g., `english`, `korean`).                                     | `english`       |    No    |
-| `ENABLE_TERRAFORM_ANALYZER`  |       ✅        |       ❌       | Set to `True` to enable the Terraform analyzer.                                                         | `False`         |    No    |
-| `ENABLE_DOCKER_ANALYZER`     |       ✅        |       ❌       | Set to `True` to enable the Docker analyzer.                                                            | `False`         |    No    |
-| `ENABLE_DEPENDENCY_ANALYZER` |       ✅        |       ❌       | Set to `True` to enable the Dependency analyzer (Python & JS).                                          | `True`          |    No    |
-| `LOG_LEVEL`                  |       ✅        |       ✅       | Logging level for the application (e.g., `INFO`, `DEBUG`, `WARNING`).                                   | `INFO`          |    No    |
+| Variable                     | `src/config.py` | Gateway Lambda | Description                                                                                             | Default                                   |     Required      |
+| :--------------------------- | :-------------: | :------------: | :------------------------------------------------------------------------------------------------------ | :---------------------------------------- | :---------------: |
+| `GITHUB_TOKEN`               |       ✅        |       ❌       | GitHub Personal Access Token with `repo` scope.                                                         | `""`                                      |        ✅         |
+| `SLACK_BOT_TOKEN`            |       ✅        |       ❌       | Slack Bot Token (starts with `xoxb-`).                                                                  | `""`                                      |        ✅         |
+| `SLACK_SIGNING_SECRET`       |       ✅        |       ✅       | Slack App Signing Secret. Used by Gateway to verify requests.                                           | `""`                                      |        ✅         |
+| `SQS_QUEUE_URL`              |       ✅        |       ✅       | The URL of the SQS queue used to buffer requests.                                                       | `None`                                    |        ✅         |
+| `ENABLE_LLM`                 |       ✅        |       ❌       | Set to `True` to enable LLM summarization, `False` otherwise.                                           | `True`                                    |        No         |
+| `BEDROCK_REGION`             |       ✅        |       ❌       | AWS region where Bedrock is available (e.g., `us-east-1`). Required if `ENABLE_LLM` is `True`.          | `us-east-1`                               |      If LLM       |
+| `BEDROCK_MODEL_ID`           |       ✅        |       ❌       | Bedrock Model ID (e.g., `anthropic.claude-3-sonnet-20240229-v1:0`). Required if `ENABLE_LLM` is `True`. | `anthropic.claude-3-sonnet-20240229-v1:0` |      If LLM       |
+| `LLM_LANGUAGE`               |       ✅        |       ❌       | Language for LLM prompts and responses (e.g., `english`, `korean`).                                     | `english`                                 |        No         |
+| `ENABLE_TERRAFORM_ANALYZER`  |       ✅        |       ❌       | Set to `True` to enable the Terraform analyzer.                                                         | `False`                                   |        No         |
+| `ENABLE_DOCKER_ANALYZER`     |       ✅        |       ❌       | Set to `True` to enable the Docker analyzer.                                                            | `False`                                   |        No         |
+| `ENABLE_DEPENDENCY_ANALYZER` |       ✅        |       ❌       | Set to `True` to enable the Dependency analyzer (Python & JS).                                          | `True`                                    |        No         |
+| `LOG_LEVEL`                  |       ✅        |       ✅       | Logging level for the application (e.g., `INFO`, `DEBUG`, `WARNING`).                                   | `INFO`                                    |        No         |
+| `DOCKERHUB_USERNAME`         |       ✅        |       ❌       | Docker Hub username for manifest inspection via API.                                                    | `""`                                      | If Docker Enabled |
+| `DOCKERHUB_PASSWORD`         |       ✅        |       ❌       | Docker Hub password or Personal Access Token (PAT) for manifest inspection.                             | `""`                                      | If Docker Enabled |
 
 _(Note: `python-dotenv` is used to load these from a `.env` file during local development if it exists.)_
 
 ## Code Structure
 
 ```
-├── src/                        # Main source code for the Processing Lambda
-│   ├── analysis_orchestrator.py # Coordinates the analysis process
-│   ├── config.py               # Loads and provides configuration
-│   ├── lambda_function.py      # AWS Lambda handler for processing SQS messages
-│   ├── sqs_processor.py        # Parses SQS message body to get Slack event
+alpha/
+├── lambdas/
+│   ├── ARMCompatibilityBot/        # Processing Lambda
+│   │   ├── README.md               # Internal README for this lambda (bug fixes, etc.)
+│   │   └── src/
+│   │       ├── .env.sample         # Sample environment file
+│   │       ├── analysis_orchestrator.py # Coordinates the analysis process
+│   │       ├── config.py           # Loads and provides configuration
+│   │       ├── lambda_function.py  # AWS Lambda handler for processing SQS messages
+│   │       ├── sqs_processor.py    # Parses SQS message body to get Slack event
+│   │       │
+│   │       ├── analyzers/          # Code for specific analysis modules
+│   │       │   ├── __init__.py
+│   │       │   ├── base_analyzer.py # Abstract base class for analyzers
+│   │       │   ├── docker_analyzer.py # Analyzes Dockerfiles and manifests
+│   │       │   ├── terraform_analyzer.py # Analyzes Terraform instance types
+│   │       │   └── dependency_analyzer/ # Analyzes software dependencies
+│   │       │       ├── __init__.py
+│   │       │       ├── base_checker.py # Abstract base class for dependency checkers
+│   │       │       ├── js_checker.py   # Checks Node.js (package.json) dependencies
+│   │       │       ├── manager.py      # Manages different dependency checkers
+│   │       │       └── python_checker.py # Checks Python (requirements.txt) dependencies
+│   │       │
+│   │       ├── core/               # Core interfaces or shared components
+│   │       │   └── interfaces.py   # Defines Analyzer and DependencyChecker interfaces
+│   │       │
+│   │       ├── services/           # Clients for interacting with external APIs
+│   │       │   ├── __init__.py
+│   │       │   ├── github_service.py # Interacts with the GitHub API
+│   │       │   └── llm_service.py  # Interacts with AWS Bedrock (Langchain)
+│   │       │
+│   │       └── slack/              # Slack-specific interactions and formatting
+│   │           ├── __init__.py
+│   │           ├── handler.py      # Handles Slack event callbacks and commands
+│   │           └── utils.py        # Formats messages using Slack Block Kit
 │   │
-│   ├── analyzers/              # Code for specific analysis modules
-│   │   ├── __init__.py
-│   │   ├── base_analyzer.py    # Abstract base class for analyzers
-│   │   ├── docker_analyzer.py  # Analyzes Dockerfiles
-│   │   ├── terraform_analyzer.py # Analyzes Terraform instance types
-│   │   └── dependency_analyzer/ # Analyzes software dependencies
-│   │       ├── __init__.py
-│   │       ├── base_checker.py # Abstract base class for dependency checkers
-│   │       ├── js_checker.py   # Checks Node.js (package.json) dependencies
-│   │       ├── manager.py      # Manages different dependency checkers
-│   │       └── python_checker.py # Checks Python (requirements.txt) dependencies
-│   │
-│   ├── core/                   # Core interfaces or shared components
-│   │   └── interfaces.py       # Defines Analyzer and DependencyChecker interfaces
-│   │
-│   ├── services/               # Clients for interacting with external APIs
-│   │   ├── __init__.py
-│   │   ├── github_service.py   # Interacts with the GitHub API
-│   │   └── llm_service.py      # Interacts with AWS Bedrock (Langchain)
-│   │
-│   └── slack/                  # Slack-specific interactions and formatting
-│       ├── __init__.py
-│       ├── handler.py          # Handles Slack event callbacks and commands
-│       └── utils.py            # Formats messages using Slack Block Kit
+│   └── slack_bot_gateway/      # Gateway Lambda
+│       └── lambda_function.py  # Handles Slack verification and SQS forwarding
 │
-└── slack_bot_gateway/          # Source code for the Gateway Lambda
-    └── lambda_function.py      # Handles Slack verification and SQS forwarding
+├── readme.md                   # This file (English README)
+└── readme.ko.md                # Korean README
 ```
 
 ## Extending the Bot
@@ -265,4 +275,4 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details (if one exists).
+This project is licensed under the Apache License 2.0.
