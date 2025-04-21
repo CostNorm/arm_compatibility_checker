@@ -1,6 +1,6 @@
 # ARM 호환성 봇 (Slack용)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- 선택적 라이선스 배지 -->
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) <!-- 선택적 라이선스 배지 -->
 
 ## README 언어 선택
 
@@ -265,4 +265,4 @@ _(참고: 로컬 개발 중 `.env` 파일이 존재하면 `python-dotenv`가 이
 
 ## 라이선스
 
-이 프로젝트는 MIT 라이선스에 따라 라이선스가 부여됩니다 - 자세한 내용은 [LICENSE](LICENSE) 파일(존재하는 경우)을 참조하세요.
+이 프로젝트는 Apache 라이선스 2.0에 따라 라이선스가 부여됩니다 - 자세한 내용은 [LICENSE](LICENSE) 파일(존재하는 경우)을 참조하세요.

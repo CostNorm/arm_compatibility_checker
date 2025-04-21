@@ -1,6 +1,6 @@
 # ARM Compatibility Bot (for Slack)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- Optional license badge -->
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) <!-- Optional license badge -->
 
 ## README 언어 선택
 
@@ -265,4 +265,4 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details (if one exists).
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details (if one exists).
