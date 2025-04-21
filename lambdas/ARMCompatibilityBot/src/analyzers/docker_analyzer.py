@@ -433,7 +433,9 @@ class DockerAnalyzer(BaseAnalyzer):
         result: Dict[str, Any] = {
             "compatible": "unknown",  # True, False, unknown
             "reason": "Check not performed yet.",
-            "details": None,
+            "details": {
+                "architectures": []
+            },  # Initialize with empty dictionary instead of None
             "checked_type": None,  # manifest, manifest_list, index, special, error
         }
 
@@ -596,16 +598,25 @@ class DockerAnalyzer(BaseAnalyzer):
                 result["reason"] = f"HTTP error {status_code} checking manifest: {e}"
             logger.error(f"HTTP error checking manifest for {cache_key}: {e}")
             result["compatible"] = "unknown"  # Treat HTTP errors as unknown
+            # Make sure details is set to a dictionary
+            if result.get("details") is None:
+                result["details"] = {"architectures": []}
         except requests.exceptions.RequestException as e:
             result["checked_type"] = "error"
             result["reason"] = f"Network error checking manifest: {e}"
             logger.error(f"Network error checking manifest for {cache_key}: {e}")
             result["compatible"] = "unknown"
+            # Make sure details is set to a dictionary
+            if result.get("details") is None:
+                result["details"] = {"architectures": []}
         except Exception as e:
             result["checked_type"] = "error"
             result["reason"] = f"Unexpected error checking manifest: {e}"
             logger.exception(f"Unexpected error checking manifest for {cache_key}: {e}")
             result["compatible"] = "unknown"
+            # Make sure details is set to a dictionary
+            if result.get("details") is None:
+                result["details"] = {"architectures": []}
 
         _DOCKER_MANIFEST_CACHE[cache_key] = result
         logger.info(
@@ -628,7 +639,7 @@ class DockerAnalyzer(BaseAnalyzer):
 
         Returns:
             Aggregated results including potential compatibility and recommendations.
-            'image_assessments': List of detailed assessments per unique base image.
+            'results': List of detailed assessments per unique base image.
             'recommendations': Actionable advice for ARM migration.
             'reasoning': Supporting details for the recommendations.
         """
@@ -705,19 +716,27 @@ class DockerAnalyzer(BaseAnalyzer):
                 "image": image_key,
                 "files": files_list,
                 "platforms_explicitly_used": sorted(list(platforms_used)),
-                "arm64_support_native": manifest_info.get(
-                    "compatible"
+                "arm64_support_native": (
+                    manifest_info.get("compatible")
+                    if manifest_info is not None
+                    else "unknown"
                 ),  # True, False, unknown
-                "native_support_reason": manifest_info.get("reason"),
-                "native_architectures": manifest_info.get("details", {}).get(
-                    "architectures", []
+                "native_support_reason": (
+                    manifest_info.get("reason")
+                    if manifest_info is not None
+                    else "Information unavailable"
                 ),
+                "native_architectures": (
+                    manifest_info.get("details", {})
+                    if manifest_info is not None
+                    else {}
+                ).get("architectures", []),
                 "migration_potential": "Unknown",  # High, Medium, Low, Not Possible
                 "required_actions": [],
             }
 
             comp_status = assessment["arm64_support_native"]
-            reason = assessment["native_support_reason"]
+            reason = assessment["native_support_reason"] or "Information unavailable"
 
             # Determine Migration Potential and Actions
             if comp_status is True:
@@ -876,7 +895,7 @@ class DockerAnalyzer(BaseAnalyzer):
             f"Finished aggregating Docker results. Overall potential: {overall_arm_potential}"
         )
         return {
-            "image_assessments": image_assessments,
+            "results": image_assessments,
             "recommendations": final_recommendations,
             "reasoning": reasoning,
             "overall_potential": overall_arm_potential,  # Add a simple overall score/level

@@ -201,7 +201,13 @@ def format_missing_url_blocks(
 def format_llm_summary_blocks(
     github_url: str, llm_summary_markdown: str
 ) -> List[Dict[str, Any]]:
-    """Formats the LLM summary into simple Slack blocks."""
+    """
+    Formats the LLM summary into Slack blocks, splitting long summaries
+    to respect Slack's 3000 character limit for text blocks.
+    """
+    # Define Slack's character limit for section text blocks
+    SLACK_SECTION_TEXT_LIMIT = 3000
+
     repo_display = _get_repo_display_name(github_url)
     # Ensure summary is not empty
     summary_content = (
@@ -210,7 +216,8 @@ def format_llm_summary_blocks(
         else "_LLM summary could not be generated or was empty._"
     )
 
-    return [
+    # Initial blocks (Title)
+    blocks = [
         {
             "type": "section",
             "text": {
@@ -219,14 +226,56 @@ def format_llm_summary_blocks(
             },
         },
         {"type": "divider"},
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": summary_content,  # Assumes LLM returns markdown suitable for Slack
-            },
-        },
     ]
+
+    # Split the summary content if it exceeds the limit
+    if len(summary_content) <= SLACK_SECTION_TEXT_LIMIT:
+        # Fits in one block
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": summary_content},
+            }
+        )
+    else:
+        # Needs splitting
+        logger.info(
+            f"LLM summary exceeds {SLACK_SECTION_TEXT_LIMIT} chars, splitting into multiple blocks."
+        )
+        start_index = 0
+        while start_index < len(summary_content):
+            # Find the best split point (prefer newline before limit)
+            end_index = start_index + SLACK_SECTION_TEXT_LIMIT
+            if end_index >= len(summary_content):
+                # Last chunk
+                chunk = summary_content[start_index:]
+                end_index = len(summary_content)  # Ensure loop terminates
+            else:
+                # Try to find a newline near the end_index to split cleanly
+                split_pos = summary_content.rfind("\n", start_index, end_index)
+                if split_pos != -1 and split_pos > start_index:
+                    # Found a newline to split at
+                    chunk = summary_content[start_index:split_pos]
+                    end_index = split_pos + 1  # Start next chunk after newline
+                else:
+                    # No newline found, split at the limit
+                    chunk = summary_content[start_index:end_index]
+                    # end_index remains the same
+
+            if chunk.strip():  # Avoid adding empty blocks
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {"type": "mrkdwn", "text": chunk},
+                    }
+                )
+            start_index = end_index  # Move to the next chunk
+
+            # Add a divider between chunks if there are more
+            if start_index < len(summary_content):
+                blocks.append({"type": "divider"})
+
+    return blocks
 
 
 def format_analysis_results_blocks(
